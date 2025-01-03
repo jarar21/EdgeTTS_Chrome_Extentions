@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blob Audio Test</title>
+</head>
+<body>
+    <h1>Text-to-Speech Audio Generator</h1>
+
+    <!-- Text input area -->
+    <textarea id="textInput" placeholder="Enter text to generate audio..." rows="4" cols="50"></textarea>
+    <br><br>
+
+    <!-- Generate Audio Button -->
+    <button id="generateAudioButton">Generate Audio</button>
+    <br><br>
+
+    <!-- Audio Player -->
+    <audio id="audioPlayer" controls>
+        <source id="audioSource" src="" type="audio/mpeg">
+        Your browser does not support the audio element.
+    </audio>
+    <br><br>
+
+    <!-- Status Message -->
+    <p id="statusMessage"></p>
+
+    <script>
+        const generateAudioButton = document.getElementById('generateAudioButton');
+        const textInput = document.getElementById('textInput');
+        const audioPlayer = document.getElementById('audioPlayer');
+        const audioSource = document.getElementById('audioSource');
+        const statusMessage = document.getElementById('statusMessage');
+
+        // Handle Generate Audio button click
+        generateAudioButton.addEventListener('click', async () => {
+            const text = textInput.value.trim();
+
+            if (!text) {
+                alert("Please enter some text.");
+                return;
+            }
+
+            // Show status message
+            statusMessage.textContent = "Generating audio... Please wait.";
+
+            try {
+                // Send POST request to /api/tts endpoint
+                const response = await fetch('/api/tts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: text })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || "Failed to generate audio.");
+                }
+
+                // Get the audio Blob from the response
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+
+                // Set the Blob URL as the source for the audio player
+                audioSource.src = blobUrl;
+                audioPlayer.load();
+
+                // Update status message
+                statusMessage.textContent = "Audio ready! Click play to listen.";
+            } catch (error) {
+                console.error("Error generating audio:", error);
+                statusMessage.textContent = "Error: " + error.message;
+            }
+        });
+    </script>
+</body>
+</html>

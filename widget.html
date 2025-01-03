@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Text-to-Speech Widget</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: #f9f9f9;
+    }
+
+    #widgetContainer {
+      height: 310px; /* Updated height */
+      background-color: #fff;
+      box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+      padding: 8px;
+      position: fixed; /* Fixed position for easy access */
+      overflow: hidden; /* Prevent scrollbars */
+      transition: all 0.3s ease; /* Smooth transition for minimizing/restoring */
+    }
+
+    #widgetContainer.minimized {
+      width: 50px; /* Reduced width for circle button */
+      height: 50px; /* Reduced height for circle button */
+      padding: 0;
+    }
+
+    #widgetContainer.minimized > * {
+      display: none; /* Hide all content when minimized */
+    }
+
+    #widgetContainer.minimized > #maximizeButton {
+      display: block; /* Show only the maximize button when minimized */
+    }
+
+    #maximizeButton {
+      display: none;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background-color: orange;
+      color: white;
+      font-size: 18px;
+      font-weight: bold;
+      border: none;
+      cursor: pointer;
+    }
+
+    #buttonContainer {
+      display: flex;
+      justify-content: flex-start; /* Align buttons to the left */
+    }
+
+    h3 {
+      text-align: center;
+      font-size: 14px; /* Reduced font size for compact layout */
+      color: #4a90e2;
+    }
+
+    .tab-buttons {
+      display: flex;
+      justify-content: space-between; /* Adjusted spacing for smaller width */
+      margin-bottom: 8px; /* Reduced margin for compactness */
+    }
+
+    .tab-buttons button {
+      flex-grow: 1; 
+      padding: 4px; 
+      background-color: #4a90e2;
+      height: 30px;
+      color: white;
+      border-radius: 5px;
+      border: none;
+      font-size: 11px; 
+      margin-right: 4px; 
+      cursor: pointer;
+    }
+
+    .tab-buttons button:last-child {
+      margin-right: 0; 
+    }
+
+    .tab-buttons button.active {
+      background-color: #357ab8; 
+    }
+
+    .tab-buttons button:hover {
+      background-color: #357ab8; 
+    }
+
+    .tab-content {
+      display: none; 
+    }
+
+    .tab-content.active {
+      display: block; 
+    }
+
+    textarea {
+  width: calc(100% - 16px); /* Full width minus padding for better alignment */
+  height: 60px; /* Adjusted height to fit container dimensions */
+  margin-top: 6px;
+  padding: 4px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  resize: none; /* Disable resizing for consistent design */
+
+}
+audio {
+       width :calc(100% -16px); 
+       margin-top :15 px
+     }
+     #audioPlayer1 {
+  padding-top: 15px; /* Add padding to the top */
+  padding-bottom: 15px; /* Add padding to the bottom */
+}
+     label, input[type="range"] {
+       font-size :11 px ;
+}
+#cancelButton,
+#minimizeButton {
+  background-color: transparent; /* Transparent background for cleaner look */
+  border: none; /* Remove default border */
+  cursor: pointer; /* Pointer cursor for interactivity */
+  padding: 0.2rem;
+}
+
+.stylish-button {
+  background: linear-gradient(45deg, #28a745, #218838); /* Green gradient background */
+  color: white; /* Text color */
+  font-size: 16px; /* Font size */
+  font-weight: bold; /* Bold text */
+  padding: 15px 30px; /* Increased padding for top and bottom */
+  border: none; /* Remove default border */
+  border-radius: 25px; /* Rounded corners */
+  cursor: pointer; /* Pointer cursor on hover */
+  box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.2); /* Subtle shadow for depth */
+  transition: all 0.3s ease-in-out; /* Smooth transition for hover effects */
+}
+
+.stylish-button:hover {
+  background: linear-gradient(45deg, #218838, #28a745); /* Reverse gradient on hover */
+  transform: scale(1.1); /* Slight zoom effect */
+}
+
+.stylish-button:active {
+  transform: scale(0.95); /* Slight shrink effect on click */
+}
+h3 {
+  text-align: center;
+  font-size: 14px; /* Reduced font size for compact layout */
+  color: #4a90e2;
+  margin: 8px 0; /* Reduced top and bottom margin */
+  padding: 0; /* Remove any default padding */
+}
+
+
+
+</style>
+</head>
+<body>
+   <div id="widgetContainer">
+       <!-- Buttons Container -->
+       <div id="buttonContainer">
+        <!-- Cancel Button -->
+        <button id="cancelButton" title="Close">
+          <img src="https://img.icons8.com/ios-filled/50/ff0000/close-window.png" alt="Cancel" style="width: 30px; height: 30px;">
+        </button>
+      
+        <!-- Minimize Button -->
+        <button id="minimizeButton" title="Minimize">
+          <img src="https://img.icons8.com/ios-filled/50/f39c12/minus.png" alt="Minimize" style="width: 30px; height: 30px;">
+        </button>
+      </div>
+
+       <!-- Maximize Button (Hidden by Default) -->
+       <button id="maximizeButton">+</button>
+
+       <!-- Tab Buttons -->
+       <div class="tab-buttons">
+           <button id="listenTab" class="active">Listen</button>
+           <button id="generateTab">Generate</button>
+       </div>
+
+       <!-- Listen Tab Content -->
+       <div id="listenContent" class="tab-content active">
+           <h3>Listen to Webpage</h3>
+           <div id="buttonRow" style="display: flex; justify-content: center; margin-top: px;">
+            <button id="playWebpageAudio" class="stylish-button">Shraya be</button>
+          </div>
+           <!-- First Audio Player -->
+           <audio id="audioPlayer1" controls>
+             <source id="audioSource1" src="" type="audio/mpeg">
+             Your browser does not support the audio element.
+           </audio>
+           <label for="speedSlider">Playback Speed:</label>
+           <input type="range" id="speedSlider" min="0.5" max="2" step="0.1" value="1.5">
+           <span id="speedValue">1.5x</span>
+       </div>
+
+       <!-- Generate Tab Content -->
+       <div id="generateContent" class="tab-content">
+        <!-- Updated Textarea -->
+        <textarea id="customText" placeholder="Enter text here..."></textarea>
+        
+        <!-- Updated Generate Button -->
+        <div id="buttonRow" style="display: flex; justify-content: center;">
+        <button id="generateAudio" class="stylish-button">Generate Audio</button>
+        </div>
+        <!-- Second Audio Player -->
+        <audio id="audioPlayer2" controls style="margin-top: 6px;">
+          <source id="audioSource2" src="" type="audio/mpeg">
+          Your browser does not support the audio element.
+        </audio>
+        
+        <label for="speedSliderGenerate">Playback Speed:</label>
+        <input type="range" id="speedSliderGenerate" min="0.5" max="2" step="0.1" value="1.5">
+        <span id="speedValueGenerate">1.5x</span>
+      </div>
+      
+   <!-- External JavaScript File -->
+   <script src="./widget.js"></script> <!-- Ensure correct path -->
+</body>
+</html>

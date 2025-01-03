@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Text-to-Speech</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f4f4f9;
+      color: #333;
+      width: 316px; /* Fixed width */
+      height: 296px; /* Fixed height */
+      overflow: hidden; /* Prevent scrolling */
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 18px;
+      color: #4a90e2;
+      margin-bottom: 10px;
+    }
+
+    textarea {
+      width: calc(100% - 20px);
+      height: 60px;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      font-size: 14px;
+      resize: none;
+    }
+
+    .button-row {
+      display: flex;
+      justify-content: space-between;
+      width: calc(100% - 20px);
+      padding-bottom: 5px;
+      padding-top: 5px;
+    }
+
+    button {
+      flex: 1; /* Make buttons equal in size */
+      padding: 8px;
+      margin-right: 5px; /* Add spacing between buttons */
+      background-color: #4a90e2;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:last-child {
+      margin-right: 0; /* Remove margin for the last button */
+    }
+
+    button:hover {
+      background-color: #357ab8;
+    }
+
+    button#switchToWidget {
+      background-color: #28a745; /* Green for widget button */
+    }
+
+    button#switchToWidget:hover {
+      background-color: #1e7c34; /* Darker green on hover */
+    }
+
+    audio {
+      width: calc(100% - 20px);
+    }
+
+    label {
+      display: block;
+      margin-top: 5px;
+      font-size: 14px;
+    }
+
+    input[type="range"] {
+      width: calc(100% - 20px);
+    }
+
+    span {
+      display: block;
+      text-align: center;
+      margin-top: 5px;
+    }
+    
+    /* Add subtle shadow and rounded corners for modern look */
+    textarea, button, audio, input[type="range"] {
+      box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    
+  </style>
+</head>
+<body>
+  <h1>Text-to-Speech</h1>
+
+  <!-- Text Input Box -->
+  <textarea id="customText" placeholder="Enter text here..."></textarea>
+
+  <!-- Buttons Row -->
+  <div class="button-row">
+    <button id="generateAudio">Generate Audio</button>
+    <button id="playWebpageAudio">Listen</button>
+  </div>
+
+  <!-- Switch to Widget Button -->
+  <button id="switchToWidget">Switch to Widget</button>
+
+  <!-- Audio Player -->
+  <audio id="audioPlayer" controls>
+    <source id="audioSource" src="" type="audio/mpeg">
+    Your browser does not support the audio element.
+  </audio>
+
+  <!-- Playback Speed Slider -->
+  <label for="speedSlider">Playback Speed:</label>
+  <input type="range" id="speedSlider" min="0.5" max="2" step="0.1" value="1">
+  <span id="speedValue">1.0x</span>
+
+  <script src="popup.js"></script>
+</body>
+</html>
