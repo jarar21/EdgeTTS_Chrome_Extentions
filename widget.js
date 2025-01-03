@@ -5,8 +5,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const generateTab = document.getElementById("generateTab");
     const listenContent = document.getElementById("listenContent");
     const generateContent = document.getElementById("generateContent");
-    const widgetContainer = document.getElementById("widgetContainer");
-    const dragIcon = document.getElementById("dragIcon");
 
     const playWebpageAudioButton = document.getElementById("playWebpageAudio");
     const generateAudioButton = document.getElementById("generateAudio");
@@ -26,6 +24,17 @@ document.addEventListener("DOMContentLoaded", () => {
     const minimizeButton = document.getElementById("minimizeButton");
     const maximizeButton = document.getElementById("maximizeButton");
 
+    // Track whether the audio players are playing
+    let audioPlayer1IsPlaying = false;
+    let audioPlayer2IsPlaying = false;
+
+    // Track which tab is currently active
+    let currentTab = 'listen'; // Default to listen tab
+
+    // Track playback position for each audio player
+    let audioPlayer1Time = 0;
+    let audioPlayer2Time = 0;
+
     // Tab Switching Logic
     listenTab.addEventListener("click", () => {
       listenTab.classList.add("active");
@@ -33,6 +42,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
       listenContent.classList.add("active");
       generateContent.classList.remove("active");
+
+      currentTab = 'listen'; // Update current tab to listen
+
+      // Reset audioPlayer1 when switching to listen tab (if it's stopped)
+      if (audioPlayer1.paused) {
+        audioPlayer1.currentTime = audioPlayer1Time; // Resume from the stored time
+        audioPlayer1IsPlaying = false; // Ensure it's marked as not playing
+      }
+
+      // Disable autoplay on switching to listen tab
+      audioPlayer1.autoplay = false; // Disable autoplay
     });
 
     generateTab.addEventListener("click", () => {
@@ -41,6 +61,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
       generateContent.classList.add("active");
       listenContent.classList.remove("active");
+
+      currentTab = 'generate'; // Update current tab to generate
+
+      // Disable autoplay on switching to generate tab
+      audioPlayer2.autoplay = false; // Disable autoplay
     });
 
     // Set initial values for playback speed sliders
@@ -55,14 +80,12 @@ document.addEventListener("DOMContentLoaded", () => {
       const speed = parseFloat(speedSliderListen.value);
       speedValueListen.textContent = `${speed}x`;
       audioPlayer1.playbackRate = speed;
-      audioPlayer2.playbackRate = speed;
     });
 
     // Handle playback speed adjustment for Generate tab
     speedSliderGenerate.addEventListener("input", () => {
       const speed = parseFloat(speedSliderGenerate.value);
       speedValueGenerate.textContent = `${speed}x`;
-      audioPlayer1.playbackRate = speed;
       audioPlayer2.playbackRate = speed;
     });
 
@@ -73,7 +96,6 @@ document.addEventListener("DOMContentLoaded", () => {
         .then(() => {
           console.log("Muted autoplay succeeded.");
           audioPlayer.muted = false; // Unmute after successful muted playback
-          audioPlayer.playbackRate = 1.5;
         })
         .catch((error) => {
           console.error("Muted autoplay failed:", error);
@@ -82,23 +104,26 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // Function to set the audio source dynamically from a Data URL
-    function setAudioSourceFromDataUrl(dataUrl) {
-      const audioSource1 = document.getElementById("audioSource1");
-      const audioSource2 = document.getElementById("audioSource2");
+    function setAudioSourceFromDataUrl(dataUrl, playerNumber) {
+      const audioSource = document.getElementById(`audioSource${playerNumber}`);
 
-      // Set source attributes dynamically for both players
-      [audioSource1, audioSource2].forEach((source) => {
-        source.src = dataUrl;
-        source.type = "audio/mpeg"; // Ensure correct MIME type
-      });
+      // Set the source attribute dynamically
+      audioSource.src = dataUrl;
+      audioSource.type = "audio/mpeg"; // Ensure correct MIME type
 
-      // Reload both players with the new source and attempt autoplay
-      [audioPlayer1, audioPlayer2].forEach((player) => {
-        player.load();
-        attemptAutoplay(player);
-      });
+      // Reload the player with the new source and attempt autoplay
+      const audioPlayer = document.getElementById(`audioPlayer${playerNumber}`);
+      audioPlayer.load();
+      attemptAutoplay(audioPlayer);
 
-      console.log("Audio sources updated for both players.");
+      // Update the playing state
+      if (playerNumber === 1) {
+        audioPlayer1IsPlaying = true;
+      } else if (playerNumber === 2) {
+        audioPlayer2IsPlaying = true;
+      }
+
+      console.log(`Audio source updated for audioPlayer${playerNumber}.`);
     }
 
     // Handle "Generate Audio" button click (Custom Text)
@@ -116,7 +141,7 @@ document.addEventListener("DOMContentLoaded", () => {
         (response) => {
           if (response && response.status === "success") {
             const dataUrl = response.audioUrl; // Base64 Data URL from background.js
-            setAudioSourceFromDataUrl(dataUrl); // Set the audio source dynamically
+            setAudioSourceFromDataUrl(dataUrl, 2); // Set the audio source for player 2 (Generate tab)
           } else {
             console.error("Error generating audio:", response.error);
             alert("Error generating audio. Please try again.");
@@ -144,7 +169,7 @@ document.addEventListener("DOMContentLoaded", () => {
               if (response && response.action === "webpageAudioGenerated") {
                 if (response.status === "success") {
                   const dataUrl = response.audioUrl; // Base64 Data URL from background.js
-                  setAudioSourceFromDataUrl(dataUrl); // Set the audio source dynamically
+                  setAudioSourceFromDataUrl(dataUrl, 1); // Set the audio source for player 1 (Listen tab)
                 } else {
                   console.error(
                     "Error generating webpage audio:",
@@ -184,6 +209,15 @@ document.addEventListener("DOMContentLoaded", () => {
       widgetContainer.classList.remove("minimized");
       maximizeButton.style.display = "none";
       window.parent.postMessage({ action: "restoreWidget" }, "*");
+    });
+
+    // Save current time when audio is paused or stopped
+    audioPlayer1.addEventListener("pause", () => {
+      audioPlayer1Time = audioPlayer1.currentTime;
+    });
+
+    audioPlayer2.addEventListener("pause", () => {
+      audioPlayer2Time = audioPlayer2.currentTime;
     });
 
   } catch (error) {
