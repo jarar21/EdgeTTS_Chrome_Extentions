@@ -8,6 +8,7 @@ The **EdgeTTS Chrome Extension** is a tool that leverages a Flask server running
 - **Webpage Audio**: Extracts text from the active webpage and converts it into speech.
 - **Custom Text-to-Speech**: Allows users to input text and generate audio dynamically.
 - **Interactive Widget**: Includes playback controls, speed adjustments, and widget customization (minimize, maximize, drag).
+- **Custom Audio Player**: Includes a custom audio player using wavesurfer.js.
 
 ---
 ### Collapsed popup
@@ -22,7 +23,8 @@ The **EdgeTTS Chrome Extension** is a tool that leverages a Flask server running
 ![2025-02-25 19_45_07-Genghis Khan - Wikipedia](https://github.com/user-attachments/assets/23bde791-63c8-43bd-82fd-d791413f37d1)
 
 ### Widget Whole page
-![2025-02-25 19_43_25-Genghis Khan - Wikipedia](https://github.com/user-attachments/assets/b2ec0845-2d7a-4576-b216-c9f51ffcd07f)
+![2025-02-25 19_58_59-Custom TTS Audio Player](https://github.com/user-attachments/assets/9c3d7638-ea08-448b-b105-9d0323476aee)
+
 
 
 ### Requirements
