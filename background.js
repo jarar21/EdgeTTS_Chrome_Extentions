@@ -26,14 +26,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         });
       })
       .then((blob) => {
-        console.log("Blob created in background.js:", blob);
+        console.log(`Blob created in background.js at ${new Date().toISOString()}:`, blob);
 
         // Convert Blob to Base64 Data URL
         const reader = new FileReader();
         reader.onloadend = () => {
           const base64DataUrl = reader.result; // Base64 Data URL
 
-          // Send success response back to sender (popup or content script)
+          console.log(`Blob successfully converted to Base64 at ${new Date().toISOString()}`);
           sendResponse({ status: "success", audioUrl: base64DataUrl });
         };
         reader.onerror = (error) => {
@@ -50,7 +50,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // Keep the message channel open for async response
   }
 
-  // Handle "Play Webpage Audio" requests
+  // Handle "sendText" requests for webpage audio generation
   if (message.action === "sendText") {
     if (!message.text || message.text.trim() === "") {
       console.error("Error: Text is required for webpage audio generation.");
@@ -75,14 +75,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         });
       })
       .then((blob) => {
-        console.log("Blob created in background.js:", blob);
+        console.log(`Blob created in background.js at ${new Date().toISOString()}:`, blob);
 
         // Convert Blob to Base64 Data URL
         const reader = new FileReader();
         reader.onloadend = () => {
           const base64DataUrl = reader.result; // Base64 Data URL
 
-          // Send success response back to sender (popup or widget)
+          console.log(`Blob successfully converted to Base64 at ${new Date().toISOString()}`);
           sendResponse({ status: "success", audioUrl: base64DataUrl });
         };
         reader.onerror = (error) => {
@@ -98,6 +98,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     return true; // Keep the message channel open for async response
   }
+
+  // Handle "Query Active Tab" requests
+  if (message.action === "queryActiveTab") {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs.length > 0) {
+        sendResponse({ tab: tabs[0] });
+      } else {
+        sendResponse({ error: "No active tab found" });
+      }
+    });
+    return true; // Keep the message channel open for async response
+  }
 });
 
 let port;
@@ -109,4 +121,18 @@ chrome.runtime.onConnect.addListener((newPort) => {
   port.onDisconnect.addListener(() => {
     port = null; // Clear port when disconnected
   });
+});
+
+chrome.action.onClicked.addListener((tab) => {
+  if (tab.id) {
+    chrome.scripting.executeScript(
+      {
+        target: { tabId: tab.id },
+        files: ["content.js"], // Dynamically inject content.js
+      },
+      () => {
+        console.log("content.js has been successfully injected.");
+      }
+    );
+  }
 });

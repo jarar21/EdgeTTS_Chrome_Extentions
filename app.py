@@ -3,6 +3,7 @@ from flask_cors import CORS  # Import Flask-CORS
 import asyncio
 from edge_tts import Communicate
 
+
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
@@ -11,6 +12,7 @@ CORS(app)  # Enable CORS for all routes
 def test_blob_audio():
     return render_template('test_blob_audio.html')  # Render the test HTML file
 
+# TTS API route
 @app.route('/api/tts', methods=['POST'])
 def tts_api():
     data = request.json  # Get JSON data from POST request

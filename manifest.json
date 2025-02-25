@@ -3,27 +3,32 @@
   "name": "Text-to-Speech Widget",
   "version": "1.0",
   "description": "A widget for text-to-speech functionality.",
-  "permissions": ["activeTab", "scripting"],
+  "permissions": [
+    "tabs",
+    "scripting",
+    "activeTab"
+  ],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background.js"
   },
   "web_accessible_resources": [
     {
-      "resources": ["widget.html", "*.js", "*.css"],
+      "resources": [
+        "widget.html",
+        "content.js",
+        "libs/wavesurfer.min.js"
+      ],
       "matches": ["<all_urls>"]
     }
   ],
   "action": {
-    "default_popup": "popup.html",
     "default_icon": {
       "16": "images/icon16.png",
       "48": "images/icon48.png",
       "128": "images/icon128.png"
-    }
-  },
-  "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self';"
+    },
+    "default_title": "Text-to-Speech Widget"
   },
   "icons": {
     "16": "images/icon16.png",
