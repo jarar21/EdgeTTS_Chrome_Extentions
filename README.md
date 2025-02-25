@@ -10,11 +10,19 @@ The **EdgeTTS Chrome Extension** is a tool that leverages a Flask server running
 - **Interactive Widget**: Includes playback controls, speed adjustments, and widget customization (minimize, maximize, drag).
 
 ---
-### Popup 
-![2025-01-03 08_31_55-Salary negotiation_ get paid what you're worth - by Better Money Habits® (articl](https://github.com/user-attachments/assets/b35b365d-08bc-42c4-a104-6235a429d05a)
+### Collapsed popup
+![2025-02-25 19_42_38-Genghis Khan - Wikipedia](https://github.com/user-attachments/assets/a61f0890-fb8f-4bb4-909a-e0c9adea48ff)
 
-### Widget
-![2025-01-03 08_32_56-Arts and humanities _ Khan Academy](https://github.com/user-attachments/assets/c1284c15-0d09-42eb-93d9-86008f9a28d2)
+
+### Expanded popup
+![2025-02-25 19_43_05-Genghis Khan - Wikipedia](https://github.com/user-attachments/assets/8775cc10-e7b4-402c-8d7e-8c1a2ae589e0)
+
+
+### Widget Generate 
+![2025-02-25 19_45_07-Genghis Khan - Wikipedia](https://github.com/user-attachments/assets/23bde791-63c8-43bd-82fd-d791413f37d1)
+
+### Widget Whole page
+![2025-02-25 19_43_25-Genghis Khan - Wikipedia](https://github.com/user-attachments/assets/b2ec0845-2d7a-4576-b216-c9f51ffcd07f)
 
 
 ### Requirements
