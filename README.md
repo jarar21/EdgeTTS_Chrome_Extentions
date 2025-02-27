@@ -21,6 +21,9 @@ The **EdgeTTS Chrome Extension** is a versatile tool that uses a locally hosted 
 ### Expanded popup
 ![2025-02-25 19_43_05-Genghis Khan - Wikipedia](https://github.com/user-attachments/assets/8775cc10-e7b4-402c-8d7e-8c1a2ae589e0)
 
+### Seamless Paragraph Audio
+![2025-02-27 21_42_04-Genghis Khan - Wikipedia](https://github.com/user-attachments/assets/9aa38053-b651-4a1e-b918-d23de356346e)
+
 
 ### Widget Generate 
 ![2025-02-25 19_45_07-Genghis Khan - Wikipedia](https://github.com/user-attachments/assets/23bde791-63c8-43bd-82fd-d791413f37d1)
