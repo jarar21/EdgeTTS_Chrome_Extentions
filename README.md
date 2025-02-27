@@ -1,7 +1,5 @@
 # EdgeTTS Chrome Extension
 
-# EdgeTTS Chrome Extension
-
 The **EdgeTTS Chrome Extension** is a versatile tool that uses a locally hosted Flask server to generate audio using EdgeTTS. This extension provides a seamless way to convert webpage content or custom text into speech, enhancing accessibility and user experience.
 
 ---
