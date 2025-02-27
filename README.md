@@ -1,15 +1,20 @@
 # EdgeTTS Chrome Extension
 
-The **EdgeTTS Chrome Extension** is a tool that leverages a Flask server running locally to generate audio using EdgeTTS. The extension allows users to:
-- Generate audio from custom text input.
-- Generate and play audio for the content of the current webpage.
+# EdgeTTS Chrome Extension
 
-### Features
-- **Webpage Audio**: Extracts text from the active webpage and converts it into speech.
-- **Custom Text-to-Speech**: Allows users to input text and generate audio dynamically.
-- **Interactive Widget**: Includes playback controls, speed adjustments, and widget customization (minimize, maximize, drag).
-- **Custom Audio Player**: Includes a custom audio player using wavesurfer.js.
+The **EdgeTTS Chrome Extension** is a versatile tool that uses a locally hosted Flask server to generate audio using EdgeTTS. This extension provides a seamless way to convert webpage content or custom text into speech, enhancing accessibility and user experience.
 
+---
+
+## Features
+
+- **Seamless Paragraph Audio**: Click on any paragraph on a webpage, and the extension will convert it to audio. It will continue generating audio for subsequent paragraphs, ensuring a smooth and uninterrupted listening experience.
+- **Webpage-to-Audio Conversion**: Extracts text from the active webpage and converts it into speech with just a click.
+- **Custom Text-to-Speech**: Input custom text and dynamically generate audio on demand.
+- **Interactive Widget**: Includes playback controls, speed adjustments, and widget customization options (minimize, maximize, drag).
+- **Custom Audio Player**: Features an integrated audio player built with wavesurfer.js for enhanced playback functionality.
+
+---
 ---
 ### Collapsed popup
 ![2025-02-25 19_42_38-Genghis Khan - Wikipedia](https://github.com/user-attachments/assets/a61f0890-fb8f-4bb4-909a-e0c9adea48ff)
