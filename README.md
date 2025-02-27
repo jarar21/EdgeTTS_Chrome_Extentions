@@ -22,7 +22,7 @@ The **EdgeTTS Chrome Extension** is a versatile tool that uses a locally hosted 
 ![2025-02-25 19_43_05-Genghis Khan - Wikipedia](https://github.com/user-attachments/assets/8775cc10-e7b4-402c-8d7e-8c1a2ae589e0)
 
 ### Seamless Paragraph Audio
-![2025-02-27 21_42_04-Genghis Khan - Wikipedia](https://github.com/user-attachments/assets/9aa38053-b651-4a1e-b918-d23de356346e)
+![2025-02-27 21_44_06-Genghis Khan - Wikipedia](https://github.com/user-attachments/assets/2c7d1805-83e8-470a-b882-8eae8fc9f219)
 
 
 ### Widget Generate 
