@@ -127,49 +127,139 @@
   });
 
   function setupTextToSpeech() {
-    const textElements = document.querySelectorAll("p, div, article, section, li, h1, h2, h3, h4, h5, h6");
+    console.log("Setting up TTS click listener using event delegation (v2 - stricter targetting).");
   
-    textElements.forEach((element) => {
-      element.style.transition = "0.3s";
-      element.style.cursor = "pointer"; // Indicate that the element is clickable
+    // Ensure no duplicate listeners if run multiple times
+    const listenerMarker = 'ttsListenerAttached_v2';
+    if (document.body.dataset[listenerMarker] === 'true') {
+       console.log("TTS listener (v2) already attached.");
+       return;
+    }
+    document.body.dataset[listenerMarker] = 'true';
   
-      element.addEventListener("click", (event) => {
-        event.stopPropagation(); // Prevent the event from bubbling up
+    document.body.addEventListener("click", (event) => {
+      // --- Basic Filtering ---
   
-        const clickedText = window.getSelection().toString().trim() || event.target.innerText.trim();
-        if (!clickedText) {
-          console.warn("Clicked area contains no text. Ignoring...");
+      // 1. Ignore clicks if blocked (debouncing)
+      if (isBlocked) {
+        // console.log("Action blocked. Please wait."); // Keep console less noisy
+        return;
+      }
+  
+      // 2. Ignore clicks on the audio controls
+      if (event.target.closest("#audio-controls")) {
+        return;
+      }
+  
+      // 3. Ignore clicks on explicitly interactive elements
+      const interactiveElement = event.target.closest('a, button, input, select, textarea, label, [role="button"], [role="link"], [onclick], summary'); // Added label, summary
+      if (interactiveElement) {
+          // Allow clicks on interactive elements unless it's just text inside (e.g., <a><span>Click Text</span></a>)
+          // If the interactive element *is* the target, let it pass.
+          // If the target is *inside* the interactive element, maybe it's just text? This gets complex.
+          // Let's keep it simple: if closest finds an interactive element, assume it's intentional interaction.
+        return;
+      }
+  
+      // --- Stricter Target Identification ---
+  
+      // 4. NEW: Ignore clicks directly on major layout containers (likely empty space)
+      //    Check the element *directly clicked* (`event.target`)
+      const clickedTagName = event.target.tagName.toUpperCase();
+      const layoutContainerTags = ['BODY', 'MAIN', 'ARTICLE', 'SECTION', 'HEADER', 'FOOTER', 'ASIDE', 'NAV', 'HTML'];
+      if (layoutContainerTags.includes(clickedTagName)) {
+          // If the direct click target is a major structural tag, it's almost certainly empty space.
+          console.log("Clicked directly on a major layout container, ignoring.", event.target);
           return;
-        }
+      }
+      // Slightly more aggressive: If it's a DIV that is the direct target AND it contains block elements, likely empty space between blocks.
+      if (clickedTagName === 'DIV' && event.target.querySelector('p, ul, ol, h1, h2, h3, h4, h5, h6, div, table')) {
+          // Check if the click was precisely on this div, not a child text node
+          if (event.target === document.elementFromPoint(event.clientX, event.clientY)) {
+               // Heuristic: Clicking a DIV that contains blocks often means clicking the space *between* them.
+               console.log("Clicked directly on a DIV containing block elements, likely empty space. Ignoring.", event.target);
+               return;
+          }
+      }
   
-        // Cleanup any ongoing audio playback before generating the next one
-        cleanupExistingPlayback();
   
-        if (isBlocked) {
-          console.log("Action blocked. Please wait before clicking again.");
-          return;
-        }
+      // 5. Find the most specific relevant text block ancestor.
+      //    Prioritize elements meant to hold distinct text units.
+      //    *** REMOVED the broad fallback to 'div, section, article' ***
+      const potentialTargetSelectors = [
+        "p", "li", // Standard text blocks
+        "h1", "h2", "h3", "h4", "h5", "h6", // Headings
+        "blockquote", // Quotes
+        "td", "th", // Table cells
+        "pre", // Preformatted text
+        "dt", "dd", // Definition lists
+        "caption", // Table captions
+        // Add specific classes known to contain text blocks if needed, e.g., ".comment-text", ".article-paragraph"
+        // Experimental: Divs/Spans that *look* like text blocks (more likely to contain direct text)
+        // 'div[class*="text"]', 'span[class*="content"]' // Example - tailor as needed
+      ].join(", "); // Create a comma-separated selector string
   
-        isBlocked = true;
-        setTimeout(() => {
-          isBlocked = false;
-        }, 1000);
+      const paragraphElement = event.target.closest(potentialTargetSelectors);
   
-        const paragraph = element.closest("p, div, article, section, li, h1, h2, h3, h4, h5, h6");
-        if (!paragraph) {
-          console.warn("No parent paragraph-like element found for the clicked element.");
-          return;
-        }
+      // 6. If no specific text block ancestor is found, ignore the click.
+      //    This prevents activating on clicks in the 'empty space' within larger containers.
+      if (!paragraphElement) {
+        // console.warn("No specific text block element found as ancestor of:", event.target); // Reduce noise
+        return;
+      }
   
-        currentAudioElement = paragraph;
-        currentAudioElement.style.backgroundColor = "rgba(50, 118, 205, 0.3)";
-        currentAudioElement.style.boxShadow = "0 4px 8px rgba(0, 0, 0, 0.2)";
-        currentAudioElement.style.borderRadius = "5px";
+      // --- Processing the Valid Click ---
   
-        queueParagraphsForAudio(paragraph);
-        playNextParagraphAudio();
-      });
-    });
+      // 7. Get text content. Use innerText as it reflects rendering.
+      const clickedText = paragraphElement.innerText?.trim();
+  
+      // 8. Ignore if the identified element has negligible text content
+      if (!clickedText || clickedText.length < 5) { // Minimum length threshold
+        // console.warn("Identified element has insufficient text. Ignoring.", paragraphElement); // Reduce noise
+        return;
+      }
+  
+      // 9. Ignore if the element is identified as entirely math/code (using your existing function)
+       if (isEntirelyLatexOrKatex(paragraphElement)) {
+         console.log("Skipping entirely LaTeX/KaTeX element:", paragraphElement);
+         return;
+       }
+  
+      // --- Initiate Playback ---
+  
+      console.log("Valid target found:", paragraphElement);
+      // console.log("Text to process:", clickedText); // Can be verbose
+  
+      // Prevent default actions & stop bubbling now we've decided to handle it
+      event.preventDefault();
+      event.stopPropagation();
+  
+      // Block subsequent clicks briefly
+      isBlocked = true;
+      setTimeout(() => {
+        isBlocked = false;
+      }, 1000); // 1 second block
+  
+      // Cleanup previous state
+      cleanupExistingPlayback();
+  
+      // Set current element and store original HTML (important for potential complex content)
+      currentAudioElement = paragraphElement;
+      // Storing innerHTML might be better if highlighting modifies structure heavily
+      // Consider storing original text if highlighting is simple background change
+      originalText = currentAudioElement.innerHTML;
+  
+      // Apply visual feedback (subtle initial highlight, heavier during playback)
+      currentAudioElement.style.transition = "background-color 0.3s ease, box-shadow 0.3s ease";
+      currentAudioElement.style.backgroundColor = "rgba(210, 230, 255, 0.5)"; // Light blue initial feedback
+  
+      // Queue this paragraph and subsequent ones for playback
+      queueParagraphsForAudio(paragraphElement); // Pass the confirmed target element
+  
+      // Start the audio sequence
+      playNextParagraphAudio(); // This will fetch audio and apply stronger highlighting
+  
+    }, { capture: true }); // Use capture phase (optional, bubble usually fine)
   }
   
   function queueParagraphsForAudio(startElement) {
@@ -193,95 +283,249 @@
     }
   }
   
-  
-  
-  
   function playNextParagraphAudio() {
     if (currentParagraphIndex >= paragraphQueue.length) {
-      console.log("All paragraphs have been played.");
-      return;
+        console.log("All paragraphs have been played.");
+        if (currentAudioElement) {
+             resetSectionStyles(currentAudioElement);
+             currentAudioElement = null;
+             console.log("Cleaned up style for the final element.");
+        }
+        currentParagraphIndex = 0;
+        paragraphQueue = [];
+        return;
     }
-  
-    const element = paragraphQueue[currentParagraphIndex];
-    if (!element || !element.innerText) {
-      console.warn("Skipping undefined or invalid element.");
-      currentParagraphIndex++;
-      playNextParagraphAudio();
-      return;
-    }
-  
-    // Skip the paragraph if it is entirely LaTeX/KaTeX
-    if (isEntirelyLatexOrKatex(element)) {
-      console.log("Skipping entirely LaTeX/KaTeX paragraph:", element.innerHTML);
-      currentParagraphIndex++;
-      playNextParagraphAudio();
-      return;
-    }
-  
-    const rawText = element.innerText.trim();
-    const textToRead = preprocessTextForTTS(rawText);
-  
-    chrome.runtime.sendMessage({ action: "sendText", text: textToRead }, (response) => {
-      if (response && response.status === "success") {
-        handleBase64AudioResponse(element, textToRead, response.audioUrl);
-      } else {
-        console.error("Error generating audio:", response?.error || "No response");
+
+    const nextElement = paragraphQueue[currentParagraphIndex];
+    currentAudioElement = nextElement; // Update global reference
+
+    if (!nextElement || !nextElement.innerText?.trim()) { // Trim check added
+        console.warn("Skipping undefined or empty element in queue at index:", currentParagraphIndex);
         currentParagraphIndex++;
         playNextParagraphAudio();
-      }
-    });
-  }
-  
-  
-  
-  
-  function handleBase64AudioResponse(element, text, base64Audio) {
-    if (!base64Audio || !base64Audio.startsWith("data:")) {
-      console.error("Invalid audio data URL:", base64Audio);
-      return;
+        return;
     }
-  
-    const words = text.split(/\s+/); // Split text into words
-    const mimeType = base64Audio.match(/data:(.*?);base64/)[1];
-    const rawStr = atob(base64Audio.split(",")[1]);
-    const blob = new Blob([new Uint8Array([...rawStr].map((c) => c.charCodeAt(0)))], { type: mimeType });
-    const blobUrl = URL.createObjectURL(blob);
-  
-    myAudioPlayer = new Audio(blobUrl);
-    myAudioPlayer.playbackRate = 1.5;
-  
-    let currentWordIndex = 0;
-  
-    myAudioPlayer.addEventListener("timeupdate", () => {
-      if (!myAudioPlayer || !myAudioPlayer.duration) return;
-  
+
+    if (isEntirelyLatexOrKatex(nextElement)) {
+        console.log("Skipping entirely LaTeX/KaTeX paragraph in queue:", nextElement.innerHTML);
+        currentParagraphIndex++;
+        playNextParagraphAudio();
+        return;
+    }
+
+    console.log("Preparing paragraph:", currentParagraphIndex, nextElement);
+    const textToRead = preprocessTextForTTS(nextElement.innerText.trim()); // Get text to read
+
+    // --- *** Check for Preloaded Audio *** ---
+    if (nextElement.preloadedAudioUrl) {
+        console.log("Using preloaded audio for paragraph:", currentParagraphIndex);
+        const preloadedUrl = nextElement.preloadedAudioUrl;
+        // Clear the preloaded URL from the element *immediately* after retrieving it
+        // so it's not accidentally reused or revoked prematurely elsewhere.
+        nextElement.preloadedAudioUrl = null;
+        // Call the handler with the preloaded Blob URL
+        handleAudioResponse(nextElement, textToRead, preloadedUrl);
+    } else {
+        // --- No Preloaded Audio: Request it ---
+        console.log("Requesting audio generation for paragraph:", currentParagraphIndex);
+        // Clear any potentially stale preloading flags if we reach here without a URL
+        nextElement.isPreloadingAudio = false;
+
+        chrome.runtime.sendMessage({ action: "sendText", text: textToRead }, (response) => {
+            // Check if the element is still the active one when the response comes back
+            if (nextElement !== currentAudioElement) {
+                console.log("Audio response received for queued element, but user clicked elsewhere. Discarding.", nextElement);
+                // If a data URL was generated, it just gets discarded. No blob URL to revoke yet.
+                return;
+            }
+
+            if (response && response.status === "success") {
+                // Pass the newly generated audio URL (likely data URL)
+                handleAudioResponse(nextElement, textToRead, response.audioUrl);
+            } else {
+                console.error("Error generating audio for queued element:", response?.error || "No response", nextElement);
+                // Try the next paragraph if generation fails
+                currentParagraphIndex++;
+                playNextParagraphAudio();
+            }
+        });
+    }
+}
+function handleAudioResponse(element, text, audioUrl) {
+  // --- Check if element is still the active one ---
+  if (element !== currentAudioElement) {
+      console.log("Audio response/URL received for an element that is no longer active. Discarding.", element);
+      if (audioUrl && audioUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(audioUrl);
+          console.log("Revoked unused preloaded Blob URL.");
+      }
+      return; // Don't process this audio
+  }
+  // --- End of check ---
+
+  if (!audioUrl || !(audioUrl.startsWith('data:') || audioUrl.startsWith('blob:'))) {
+      console.error("Invalid audio data/blob URL:", audioUrl);
+      if (element === currentAudioElement) {
+           resetSectionStyles(element);
+           currentParagraphIndex++;
+           playNextParagraphAudio();
+      }
+      return;
+  }
+
+  const words = text.split(/\s+/);
+  totalWords = words.length; // Update global totalWords for this specific audio segment
+
+  let audioSrcUrl = null;
+  let isBlobUrl = false;
+
+  if (audioUrl.startsWith('blob:')) {
+      audioSrcUrl = audioUrl;
+      isBlobUrl = true;
+      console.log("Using preloaded Blob URL for playback:", element);
+  } else if (audioUrl.startsWith('data:')) {
+      try {
+          const mimeType = audioUrl.match(/data:(.*?);base64/)[1];
+          const rawStr = atob(audioUrl.split(",")[1]);
+          const blob = new Blob([new Uint8Array([...rawStr].map((c) => c.charCodeAt(0)))], { type: mimeType });
+          audioSrcUrl = URL.createObjectURL(blob);
+          isBlobUrl = true;
+          console.log("Created Blob URL from data URL for playback.");
+      } catch (e) {
+          console.error("Error processing base64 audio data:", e);
+          if (element === currentAudioElement) {
+              resetSectionStyles(element);
+              currentParagraphIndex++;
+              playNextParagraphAudio();
+          }
+          return;
+      }
+  } else {
+      console.error("Unexpected audioUrl format:", audioUrl);
+      return;
+  }
+
+  if (!audioSrcUrl) {
+       console.error("Failed to prepare audio source URL.");
+       if (element === currentAudioElement) {
+          resetSectionStyles(element);
+          currentParagraphIndex++;
+          playNextParagraphAudio();
+       }
+       return;
+  }
+
+  myAudioPlayer = new Audio(audioSrcUrl);
+  myAudioPlayer.playbackRate = 1.5; // TODO: Make dynamic
+
+  wordSpans = [];
+  let currentWordIndex = -1;
+  let preloadTriggered = false; // Flag to ensure preload logic runs only once per audio segment
+
+  // --- Time Update Listener (Word Highlighting & EXTENDED Preload Trigger) ---
+  myAudioPlayer.addEventListener("timeupdate", () => {
+      if (!myAudioPlayer || element !== currentAudioElement || !myAudioPlayer.duration || myAudioPlayer.duration === 0) return;
+
       const currentTime = myAudioPlayer.currentTime;
       const duration = myAudioPlayer.duration;
       const progress = currentTime / duration;
-  
-      const newWordIndex = Math.floor(progress * words.length);
-      if (newWordIndex !== currentWordIndex) {
-        currentWordIndex = newWordIndex;
-        highlightWord(element, currentWordIndex, words);
+
+      // --- Preload Trigger (Extended Chained Logic) ---
+      if (!preloadTriggered && progress >= 0.5) {
+          preloadTriggered = true; // Mark that preload has been initiated for this segment
+
+          let indexToCheck = currentParagraphIndex + 1; // Start checking from the next paragraph
+          const MAX_PRELOAD_AHEAD = 3; // Max number of paragraphs to *initiate* preload for (N+1, N+2, N+3)
+          let preloadsInitiatedCount = 0;
+
+          console.log(`[Preload Chain @ 50%] Current index: ${currentParagraphIndex}. Starting check from index: ${indexToCheck}`);
+
+          // Loop to check and potentially preload N+1, N+2, N+3
+          while (preloadsInitiatedCount < MAX_PRELOAD_AHEAD && indexToCheck < paragraphQueue.length) {
+              console.log(`[Preload Chain] Checking index: ${indexToCheck}`);
+              const elementToPreload = paragraphQueue[indexToCheck];
+              const elementText = elementToPreload?.innerText?.trim();
+              const isValid = elementText && !isEntirelyLatexOrKatex(elementToPreload);
+
+              if (isValid) {
+                  const wordCount = elementText.split(/\s+/).length;
+                  console.log(`[Preload Chain] Element at index ${indexToCheck} is valid. Words: ${wordCount}. Preloading.`);
+
+                  // --- Preload the valid element ---
+                  preloadAudio(elementToPreload, elementText);
+                  preloadsInitiatedCount++; // Increment count of initiated preloads
+
+                  // --- Decide if we continue checking the *next* one ---
+                  if (wordCount < 15) {
+                      console.log(`[Preload Chain] Element at ${indexToCheck} is short (<15 words). Will check next index.`);
+                      indexToCheck++; // Move to the next index for the next loop iteration
+                  } else {
+                      console.log(`[Preload Chain] Element at ${indexToCheck} is NOT short. Stopping chain.`);
+                      break; // Stop the loop/chain if the current element wasn't short
+                  }
+              } else {
+                  console.log(`[Preload Chain] Element at index ${indexToCheck} is invalid/empty/latex. Stopping chain.`);
+                  break; // Stop the loop/chain if we hit an invalid element
+              }
+          } // End of while loop
+
+          if (preloadsInitiatedCount > 0) {
+              console.log(`[Preload Chain] Finished. Initiated ${preloadsInitiatedCount} preloads.`);
+          } else {
+               console.log(`[Preload Chain] Finished. No valid elements found to preload starting from index ${currentParagraphIndex + 1}.`);
+          }
+
       }
-    });
-  
-    myAudioPlayer.addEventListener("ended", () => {
+      // --- End of Preload Trigger ---
+
+
+      // --- Word Highlighting ---
+      const currentSegmentWords = words.length;
+      const newWordIndex = Math.min(Math.max(0, Math.floor(progress * currentSegmentWords)), currentSegmentWords - 1);
+
+      if (newWordIndex !== currentWordIndex) {
+          highlightWord(element, newWordIndex, words);
+          currentWordIndex = newWordIndex;
+      }
+  });
+
+  // --- Ended Listener ---
+  myAudioPlayer.addEventListener("ended", () => {
+      console.log("Audio ended for element:", element);
       resetSectionStyles(element);
-      currentParagraphIndex++;
-      playNextParagraphAudio();
-    });
-  
-    myAudioPlayer.play().catch((err) => {
-      console.error("Error playing audio:", err);
+
+      if (isBlobUrl && audioSrcUrl) {
+          URL.revokeObjectURL(audioSrcUrl);
+          console.log("Revoked Blob URL on ended:", audioSrcUrl);
+      }
+
+      if (element === currentAudioElement) {
+          currentParagraphIndex++;
+          playNextParagraphAudio();
+      } else {
+          console.log("Audio ended for an element that is no longer the active one.");
+      }
+  });
+
+  // --- Playback ---
+  element.style.backgroundColor = "rgba(50, 118, 205, 0.3)";
+  element.style.boxShadow = "0 4px 8px rgba(0, 0, 0, 0.2)";
+  element.style.borderRadius = "5px";
+
+  myAudioPlayer.play().catch((err) => {
+      console.error("Error playing audio:", err, element);
       resetSectionStyles(element);
-      currentParagraphIndex++;
-      playNextParagraphAudio();
-    });
-  
-    element.style.backgroundColor = "rgba(50, 118, 205, 0.3)"; // Highlight the section
-  }
-  
+      if (isBlobUrl && audioSrcUrl) {
+          URL.revokeObjectURL(audioSrcUrl);
+          console.log("Revoked Blob URL on play error:", audioSrcUrl);
+      }
+
+      if (element === currentAudioElement) {
+          currentParagraphIndex++;
+          playNextParagraphAudio();
+      }
+  });
+}
   function highlightWord(element, currentIndex, words) {
     if (!element || !words.length) return;
   
@@ -318,21 +562,33 @@
   
   function resetSectionStyles(element) {
     if (!element) return;
-  
-    const highlights = element.querySelectorAll("span[style*='background-color']");
+
+    // Remove word highlight spans first (if they exist and are direct children/descendants)
+    // Query relative to the element to avoid affecting unrelated parts of the page
+    const highlights = element.querySelectorAll("span[style*='background-color']"); // Consider a more specific selector if needed
     highlights.forEach((highlight) => {
-      const parent = highlight.parentNode;
-      while (highlight.firstChild) {
-        parent.insertBefore(highlight.firstChild, highlight);
-      }
-      parent.removeChild(highlight);
+        try { // Add try-catch for robustness if DOM manipulation fails
+            const parent = highlight.parentNode;
+            if (parent) { // Ensure parent exists
+                // Unwrap the span carefully
+                while (highlight.firstChild) {
+                    parent.insertBefore(highlight.firstChild, highlight);
+                }
+                parent.removeChild(highlight);
+            } else {
+                 console.warn("Highlight span parent not found during reset.", highlight);
+            }
+        } catch (e) {
+            console.error("Error removing highlight span:", e, highlight);
+        }
     });
-  
-    element.style.backgroundColor = "";
-    element.style.boxShadow = "";
-    element.style.borderRadius = "";
-    console.log("Section reset to original styles.");
-  }
+
+    // Reset the main element's direct inline styles
+    element.style.backgroundColor = ""; // Clear background
+    element.style.boxShadow = "";     // Clear shadow
+    element.style.borderRadius = ""; // Clear border radius
+    // console.log("Section reset to original styles for element:", element); // Reduce noise slightly
+}
 
   function onAudioTimeUpdate() {
     if (!myAudioPlayer || !myAudioPlayer.duration || !wordSpans.length) return;
@@ -361,57 +617,107 @@
   }
   
   function preloadAudio(element, textToRead) {
-    if (element.preloadedAudioUrl || element.isAudioBeingGenerated) {
-      return;
+    // Check if already preloaded or currently preloading
+    if (element.preloadedAudioUrl || element.isPreloadingAudio) {
+        // console.log("Skipping preload: Already preloaded or in progress for:", element);
+        return;
     }
-  
-    element.isAudioBeingGenerated = true;
-  
-    console.log("Sending request to generate audio for:", textToRead);
-  
+
+    console.log("Starting preload for:", element);
+    element.isPreloadingAudio = true; // Set flag: Preloading is in progress
+
     chrome.runtime.sendMessage({ action: "sendText", text: textToRead }, (response) => {
-      if (response && response.status === "success") {
-        const [meta, base64Data] = response.audioUrl.split(",");
-        const mimeMatch = meta.match(/data:(.*?);base64/);
-        if (!mimeMatch) {
-          console.error("Invalid base64 format.");
-          element.isAudioBeingGenerated = false;
-          return;
+        // Check if the element we requested preload for is still relevant (might have been skipped/cancelled)
+        // This check might be less critical here, but good for safety.
+        // A better check might be in cleanupExistingPlayback to clear flags/URLs if cancelled.
+
+        if (response && response.status === "success" && response.audioUrl.startsWith('data:')) {
+            try {
+                const [meta, base64Data] = response.audioUrl.split(",");
+                const mimeMatch = meta.match(/data:(.*?);base64/);
+                if (!mimeMatch) throw new Error("Invalid base64 format during preload.");
+
+                const mimeType = mimeMatch[1];
+                const rawStr = window.atob(base64Data);
+                const blob = new Blob([new Uint8Array([...rawStr].map((c) => c.charCodeAt(0)))], { type: mimeType });
+                const blobUrl = URL.createObjectURL(blob);
+
+                // --- Store the Blob URL on the element ---
+                element.preloadedAudioUrl = blobUrl;
+                // --- Mark as preloaded (optional, existence of URL is key) ---
+                // element.dataset.audioPreloaded = 'true';
+                console.log("Preload successful, Blob URL stored for:", element);
+
+            } catch (e) {
+                console.error("Error processing preloaded audio data:", e, element);
+                 // Clear any potentially half-stored URL
+                 if (element.preloadedAudioUrl) {
+                      URL.revokeObjectURL(element.preloadedAudioUrl); // Revoke if created but storing failed
+                      element.preloadedAudioUrl = null;
+                 }
+            }
+        } else {
+            console.error("Error preloading audio:", response?.error || "Non-data URL received", element);
         }
-        const mimeType = mimeMatch[1];
-        const rawStr = window.atob(base64Data);
-        const rawLength = rawStr.length;
-        const uInt8Array = new Uint8Array(rawLength);
-        for (let i = 0; i < rawLength; i++) {
-          uInt8Array[i] = rawStr.charCodeAt(i);
-        }
-        const blob = new Blob([uInt8Array], { type: mimeType });
-        element.preloadedAudioUrl = URL.createObjectURL(blob);
-        console.log("Blob preloaded successfully for text:", textToRead);
-      } else {
-        console.error("Error preloading audio:", response?.error || "No response");
-      }
-  
-      element.isAudioBeingGenerated = false; // Reset flag
-      console.log("Reset isAudioBeingGenerated for:", textToRead);
+
+        // --- Reset preloading flag regardless of success/failure ---
+        element.isPreloadingAudio = false;
+        // console.log("Finished preload attempt for:", element);
     });
+}
+
+function cleanupExistingPlayback() {
+  const previousElement = currentAudioElement;
+  const previousAudioPlayer = myAudioPlayer;
+
+  console.log("Starting playback cleanup...");
+
+  if (previousAudioPlayer) {
+      previousAudioPlayer.pause();
+      const currentSrc = previousAudioPlayer.src; // Get src before nulling
+      previousAudioPlayer.src = ""; // Detach player internals
+      console.log("Paused and detached previous audio player.");
+      // Revoke the Blob URL of the *player that was just stopped*, if it was a blob url
+      if (currentSrc && currentSrc.startsWith('blob:')) {
+          URL.revokeObjectURL(currentSrc);
+          console.log("Revoked Blob URL from stopped player:", currentSrc);
+      }
   }
 
-  function cleanupExistingPlayback() {
-    if (myAudioPlayer) {
-      myAudioPlayer.pause();
-      myAudioPlayer.currentTime = 0;
-      myAudioPlayer = null;
-    }
-  
-    if (currentAudioElement) {
-      resetSectionStyles(currentAudioElement);
-      currentAudioElement = null;
-    }
-  
-    console.log("Playback cleaned up.");
+  // Nullify global references *before* resetting styles or cleaning queue
+  myAudioPlayer = null;
+  currentAudioElement = null;
+
+  // Reset styles of the element that *was* playing
+  if (previousElement) {
+      resetSectionStyles(previousElement);
+      console.log("Cleaned up styles for previous element:", previousElement);
   }
-  
+
+  // --- Clean up unused preloaded URLs in the queue ---
+  console.log("Checking paragraph queue for unused preloaded URLs...");
+  paragraphQueue.forEach((element, index) => {
+      if (element && element.preloadedAudioUrl) {
+          console.log(`Revoking unused preloaded URL for queued element at index ${index}:`, element);
+          URL.revokeObjectURL(element.preloadedAudioUrl);
+          element.preloadedAudioUrl = null; // Clear reference
+      }
+      // Also reset preloading flags
+      if (element) {
+          element.isPreloadingAudio = false;
+      }
+  });
+
+  // Reset queue state for the next sequence (important if cleanup is called mid-sequence)
+  paragraphQueue = [];
+  currentParagraphIndex = 0;
+
+  // Reset word tracking
+  wordSpans = [];
+  totalWords = 0;
+
+  console.log("Playback cleanup finished.");
+}
 
   function playSelectedTextAudio(event) {
     const selectedText = window.getSelection().toString().trim();
@@ -433,28 +739,81 @@
     });
   }
   function preprocessTextForTTS(text) {
-    // Define a list of symbols to replace
+    // 1. Normalize all minus signs (mathematical U+2212) and dashes (U+2014, U+2013) to hyphen-minus (U+002D)
+    let processedText = text.replace(/[−—–]/g, '-');
+
+    // --- Placeholder Pass ---
+    // Use unique placeholders unlikely to appear in normal text.
+
+    // Pass 1: Identify hyphens acting as subtraction when SURROUNDED BY SPACES.
+    // Matches one or more spaces, hyphen, one or more spaces.
+    processedText = processedText.replace(
+        /\s+-\s+/g, // Requires spaces around the hyphen
+        '__SUBTRACT__'
+    );
+
+    // Pass 2: Identify hyphens acting as a NEGATIVE sign.
+    // Matches: Start of string OR preceded by '(', '=', '+', '*', '/', or space,
+    //          followed by a digit or letter (or opening parenthesis for nested).
+    // Uses lookbehind and lookahead. Allows optional spaces around the hyphen itself.
+    processedText = processedText.replace(
+        /(?<=[=(+*/\s(]|^)\s*-\s*(?=[a-zA-Z0-9(])/g,
+        '__NEGATIVE__'
+    );
+
+    // Pass 3: NEW - Identify hyphens acting as subtraction specifically BETWEEN DIGITS (no spaces needed).
+    // This catches '5-3' but avoids 'a-b' and 'step-by-step'.
+    processedText = processedText.replace(
+        /(?<=[0-9])-(?=[0-9])/g, // Lookbehind for digit, hyphen, lookahead for digit
+        '__SUBTRACT__'
+    );
+
+    // --- Symbol Replacement Pass ---
+    // Now replace standard symbols and the placeholders. Add spaces for clarity.
+
     const symbolMap = {
-      "Δ": "Delta",
-      "α": "alpha",
-      "β": "beta",
-      "γ": "gamma",
-      "+": "plus",
-      "-": "minus",
-      "*": "times",
-      "/": "divided by",
-      "=": "equals",
-      "^": "to the power of",
-      "√": "square root of",
-      "π": "pi",
-      "%": "percent",
-      "∑": "sum of",
-      "∫": "integral of",
+        // Placeholders first (critical they are replaced before any remaining '-')
+        "__SUBTRACT__": " minus ",
+        "__NEGATIVE__": " negative ",
+        // Standard symbols (ensure no plain '-' key here)
+        "+": " plus ",
+        "=": " equals ",
+        "*": " times ",
+        "/": " divided by ",
+        // Greek letters, etc.
+        "Δ": " Delta ", "α": " alpha ", "β": " beta ", "γ": " gamma ",
+        "^": " to the power of ", "√": " square root of ", "π": " pi ",
+        "%": " percent ", "∑": " sum of ", "∫": " integral of "
+        // Add other symbols as needed
     };
-    return text
-      .replace(/[\Δαβγ\+\-\*\/\=\^√π%∑∫]/g, (match) => symbolMap[match] || match)
-      .trim();
-  }
+
+    // Create a regex covering all keys in the map
+    const allSymbolsRegexKeys = Object.keys(symbolMap)
+        .map(k => k.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')) // Escape regex metacharacters
+        .join('|'); // Join with OR
+
+    const finalSymbolRegex = new RegExp(allSymbolsRegexKeys, 'g');
+
+    processedText = processedText.replace(finalSymbolRegex, (match) => symbolMap[match]);
+
+    // --- Cleanup Pass ---
+
+    // At this point, any remaining '-' should be intra-word hyphens (e.g., "step-by-step")
+    // or unspaced variable subtractions like "a-b" which we are now choosing *not*
+    // to interpret as "minus" by default. Leave these hyphens for the TTS engine.
+
+    // Collapse multiple spaces resulting from replacements into single spaces
+    processedText = processedText.replace(/\s{2,}/g, ' ');
+
+    // Remove spaces around parentheses that might have been added by spaced placeholders/symbols
+    // Be careful not to remove intended spaces inside complex expressions if needed.
+    processedText = processedText.replace(/\s*\(\s*/g, '(');
+    processedText = processedText.replace(/\s*\)\s*/g, ')');
+
+
+    // Trim leading/trailing whitespace from the final result
+    return processedText.trim();
+}
   function isEntirelyLatexOrKatex(element) {
     // Define LaTeX/KaTeX-related classes and tags
     const latexClasses = ['katex', 'mathjax', 'math', 'mjx-container'];
@@ -491,7 +850,7 @@
     if (existingControls) {
       existingControls.remove();
     }
-
+  
     // Create the main controls container
     const controlsContainer = document.createElement("div");
     controlsContainer.id = "audio-controls";
@@ -508,7 +867,8 @@
     controlsContainer.style.alignItems = "center";
     controlsContainer.style.justifyContent = "space-between";
     controlsContainer.style.zIndex = "9999";
-
+    controlsContainer.style.transition = "width 0.3s ease"; // Smooth width transition
+  
     // Cancel Button (✖)
     const cancelButton = document.createElement("button");
     cancelButton.textContent = "✖";
@@ -522,11 +882,8 @@
     cancelButton.style.backgroundColor = "transparent";
     cancelButton.style.color = "rgba(36, 32, 32, 0.8)";
     cancelButton.style.cursor = "pointer";
-
-    cancelButton.addEventListener("click", () => {
-      terminateTTSProcess();
-    });
-
+    cancelButton.addEventListener("click", terminateTTSProcess);
+  
     // Draggable Button (⋮⋮)
     const draggableButton = document.createElement("div");
     draggableButton.textContent = "⋮⋮";
@@ -538,26 +895,9 @@
     draggableButton.style.display = "flex";
     draggableButton.style.alignItems = "center";
     draggableButton.style.justifyContent = "center";
-
-    draggableButton.addEventListener("mousedown", (event) => {
-      const offsetX = event.clientX - controlsContainer.getBoundingClientRect().left;
-      const offsetY = event.clientY - controlsContainer.getBoundingClientRect().top;
-
-      function onMouseMove(moveEvent) {
-        controlsContainer.style.top = `${moveEvent.clientY - offsetY}px`;
-        controlsContainer.style.left = `${moveEvent.clientX - offsetX}px`;
-      }
-
-      function onMouseUp() {
-        document.removeEventListener("mousemove", onMouseMove);
-        document.removeEventListener("mouseup", onMouseUp);
-      }
-
-      document.addEventListener("mousemove", onMouseMove);
-      document.addEventListener("mouseup", onMouseUp);
-    });
-
-    // Play Button (▶)
+    draggableButton.addEventListener("mousedown", makeDraggable(controlsContainer));
+  
+    // Play/Pause Button (▶ / ⏸)
     const playPauseButton = document.createElement("button");
     playPauseButton.textContent = "▶";
     playPauseButton.style.width = "40px";
@@ -567,19 +907,8 @@
     playPauseButton.style.backgroundColor = "#2196F3";
     playPauseButton.style.color = "#fff";
     playPauseButton.style.cursor = "pointer";
-
-    playPauseButton.addEventListener("click", () => {
-      if (myAudioPlayer) {
-        if (myAudioPlayer.paused) {
-          myAudioPlayer.play();
-          playPauseButton.textContent = "⏸";
-        } else {
-          myAudioPlayer.pause();
-          playPauseButton.textContent = "▶";
-        }
-      }
-    });
-
+    playPauseButton.addEventListener("click", togglePlayPause);
+  
     // Collapsible Menu Button (<)
     const menuButton = document.createElement("button");
     menuButton.textContent = "<";
@@ -592,41 +921,176 @@
     menuButton.style.cursor = "pointer";
     menuButton.style.transform = "scale(1.2)";
     menuButton.style.transformOrigin = "center";
-
+  
     // Collapsible Menu Container
     const collapsibleMenu = document.createElement("div");
-    collapsibleMenu.style.flexDirection = "row-reverse";
-    collapsibleMenu.style.alignItems = "center";
     collapsibleMenu.style.position = "absolute";
     collapsibleMenu.style.top = "0";
-    collapsibleMenu.style.left = "-100px";
     collapsibleMenu.style.backgroundColor = "rgba(78, 75, 75, 0.9)";
     collapsibleMenu.style.borderRadius = "15px 0 0 15px";
     collapsibleMenu.style.boxShadow = "0 4px 8px rgba(0, 0, 0, 0.2)";
     collapsibleMenu.style.padding = "10px";
-    collapsibleMenu.style.width = "80px";
-    collapsibleMenu.style.zIndex = "9998";
     collapsibleMenu.style.display = "none";
+    collapsibleMenu.style.flexDirection = "row-reverse";
+    collapsibleMenu.style.alignItems = "center";
+    collapsibleMenu.style.transition = "opacity 0.3s ease, left 0.3s ease"; // Smooth transition
+    collapsibleMenu.style.opacity = "0"; // Initially hidden
+  
+    // Dynamic Menu Items Configuration
+    const menuItems = [
+      {
+        type: "button",
+        iconUrl: "https://img.icons8.com/ios-filled/50/ffffff/literature.png",
+        action: switchToWidget,
+        tooltip: "Switch to Widget",
+        width: "40px",
+        height: "40px",
+      },
+      {
+        type: "speed",
+        initialText: "1.5x",
+        speeds: [0.5, 1.0, 1.5, 2.0],
+        action: cyclePlaybackSpeed,
+        tooltip: "Change Speed",
+        width: "40px",
+        height: "40px",
+      },
+    ];
 
-    // Collapsible Menu Items
-    const bookButton = document.createElement("button");
-    bookButton.style.height = "40px";
-    bookButton.style.border = "none";
-    bookButton.style.backgroundColor = "transparent";
-    bookButton.style.cursor = "pointer";
-    // Book image as background
-    bookButton.style.backgroundImage = "url('https://img.icons8.com/ios-filled/50/ffffff/literature.png')";
-bookButton.style.backgroundSize = "contain";
-bookButton.style.backgroundRepeat = "no-repeat";
-bookButton.style.backgroundPosition = "center";       
-    // Scale the image
-    bookButton.style.transform = "scale(1.2)";
-    bookButton.style.transformOrigin = "center";
-    bookButton.style.width = "40px";
+    // Calculate dynamic width
+    const padding = 10; // Left and right padding (10px each side)
+    const closeButtonWidth = 40; // Width of the close button
+    const itemWidths = menuItems.map(item => parseInt(item.width, 10)); // Extract widths as numbers
+    const totalItemWidth = itemWidths.reduce((sum, width) => sum + width, 0); // Sum of all item widths
+    const totalMenuWidth = totalItemWidth + closeButtonWidth + (padding * 2); // Total width including padding and close button
+    const collapsedOffset = -totalMenuWidth - 20; // Extra offset for smooth collapse
 
-    // (NEW) bookButton event -> "Switch to Widget" functionality from popup.js
-    bookButton.addEventListener("click", () => {
-      // Check if the draggable container (widget) is already in the DOM
+    // Set initial collapsed position
+    collapsibleMenu.style.left = `${collapsedOffset}px`;
+  
+    // Populate Collapsible Menu Dynamically
+    menuItems.forEach((item) => {
+      const menuItem = document.createElement(item.type === "speed" ? "div" : "button");
+      menuItem.style.width = item.width;
+      menuItem.style.height = item.height;
+      menuItem.style.border = "none";
+      menuItem.style.backgroundColor = "transparent";
+      menuItem.style.cursor = "pointer";
+      menuItem.style.color = "#fff";
+      menuItem.style.display = "flex";
+      menuItem.style.alignItems = "center";
+      menuItem.style.justifyContent = "center";
+      menuItem.title = item.tooltip; // Tooltip for accessibility
+  
+      if (item.type === "button" && item.iconUrl) {
+        menuItem.style.backgroundImage = `url('${item.iconUrl}')`;
+        menuItem.style.backgroundSize = "contain";
+        menuItem.style.backgroundRepeat = "no-repeat";
+        menuItem.style.backgroundPosition = "center";
+        menuItem.style.transform = "scale(0.6)";
+        menuItem.style.transformOrigin = "center";
+      } else if (item.type === "speed") {
+        menuItem.textContent = item.initialText;
+        menuItem.style.fontSize = "16px";
+      } else if (item.text) {
+        menuItem.textContent = item.text;
+      }
+  
+      menuItem.addEventListener("click", () => item.action(menuItem, item));
+      collapsibleMenu.appendChild(menuItem);
+    });
+  
+    // Close Menu Button (>)
+    const closeMenuButton = document.createElement("button");
+    closeMenuButton.textContent = ">";
+    closeMenuButton.style.width = "40px";
+    closeMenuButton.style.height = "40px";
+    closeMenuButton.style.border = "none";
+    closeMenuButton.style.backgroundColor = "transparent";
+    closeMenuButton.style.color = "#fff";
+    closeMenuButton.style.cursor = "pointer";
+    closeMenuButton.style.transform = "scale(1.2)";
+    closeMenuButton.style.transformOrigin = "center";
+    closeMenuButton.addEventListener("click", () => toggleMenu(false));
+  
+    collapsibleMenu.appendChild(closeMenuButton);
+  
+    // Toggle Menu Logic with Dynamic Width
+    function toggleMenu(open) {
+      const isOpen = collapsibleMenu.style.display !== "none";
+      if (open === undefined) open = !isOpen; // Toggle if no explicit state
+  
+      if (open) {
+        collapsibleMenu.style.display = "flex";
+        controlsContainer.style.width = "65px";
+        controlsContainer.style.borderRadius = "0 15px 15px 0";
+        playPauseButton.style.marginLeft = "8px";
+        menuButton.style.display = "none";
+        setTimeout(() => (collapsibleMenu.style.opacity = "1"), 10); // Fade in
+        collapsibleMenu.style.left = `-${totalMenuWidth}px`; // Dynamic expanded position
+      } else {
+        collapsibleMenu.style.opacity = "0";
+        collapsibleMenu.style.left = `${collapsedOffset}px`; // Dynamic collapsed position
+        controlsContainer.style.width = "80px";
+        controlsContainer.style.borderRadius = "15px";
+        playPauseButton.style.marginLeft = "0";
+        setTimeout(() => {
+          collapsibleMenu.style.display = "none";
+          menuButton.style.display = "block";
+        }, 300); // Match transition duration
+      }
+    }
+  
+    menuButton.addEventListener("click", () => toggleMenu(true));
+  
+    // Append Elements to Controls Container
+    controlsContainer.appendChild(menuButton);
+    controlsContainer.appendChild(playPauseButton);
+    controlsContainer.appendChild(draggableButton);
+    controlsContainer.appendChild(cancelButton);
+    controlsContainer.appendChild(collapsibleMenu);
+  
+    // Append Controls to Document Body
+    document.body.appendChild(controlsContainer);
+  
+    adjustControlsPosition();
+    window.addEventListener("resize", adjustControlsPosition);
+  
+    // Helper Functions
+    function makeDraggable(element) {
+      return function (event) {
+        const offsetX = event.clientX - element.getBoundingClientRect().left;
+        const offsetY = event.clientY - element.getBoundingClientRect().top;
+  
+        function onMouseMove(moveEvent) {
+          element.style.top = `${moveEvent.clientY - offsetY}px`;
+          element.style.left = `${moveEvent.clientX - offsetX}px`;
+          element.style.right = "auto"; // Override right positioning
+        }
+  
+        function onMouseUp() {
+          document.removeEventListener("mousemove", onMouseMove);
+          document.removeEventListener("mouseup", onMouseUp);
+        }
+  
+        document.addEventListener("mousemove", onMouseMove);
+        document.addEventListener("mouseup", onMouseUp);
+      };
+    }
+  
+    function togglePlayPause() {
+      if (myAudioPlayer) {
+        if (myAudioPlayer.paused) {
+          myAudioPlayer.play();
+          playPauseButton.textContent = "⏸";
+        } else {
+          myAudioPlayer.pause();
+          playPauseButton.textContent = "▶";
+        }
+      }
+    }
+  
+    function switchToWidget() {
       if (!document.querySelector("div#draggableIframeContainer")) {
         const container = document.createElement("div");
         container.id = "draggableIframeContainer";
@@ -636,162 +1100,45 @@ bookButton.style.backgroundPosition = "center";
         container.style.width = "310px";
         container.style.height = "330px";
         container.style.zIndex = "10000";
-    
-        // Match the audio control styling:
-        container.style.backgroundColor = "rgba(78, 75, 75, 0.9)"; 
+        container.style.backgroundColor = "rgba(78, 75, 75, 0.9)";
         container.style.borderRadius = "15px";
         container.style.boxShadow = "0 6px 12px rgba(0, 0, 0, 0.2)";
-    
-        // Create the iframe
+  
         const iframe = document.createElement("iframe");
         iframe.id = "draggableIframe";
-        iframe.src = chrome.runtime.getURL("widget.html"); // Ensure widget.html is in your extension
+        iframe.src = chrome.runtime.getURL("widget.html");
         iframe.style.width = "100%";
         iframe.style.height = "100%";
         iframe.style.border = "none";
         iframe.style.borderRadius = "10%";
-    
-        // Append iframe to container, then to body
+  
         container.appendChild(iframe);
         document.body.appendChild(container);
-
-        // Drag-and-Drop Functionality for Container
-        let isDragging = false;
-        let offsetX, offsetY;
-
-        // Add a drag icon to drag the entire iframe container
+  
         const dragIcon = document.createElement("div");
-        dragIcon.id = "dragIcon";
         dragIcon.textContent = "☰";
         dragIcon.style.cssText =
           "position: absolute; top: 11px; right: 10px; width: 30px; height: 30px; background-color: grey; color: white; opacity: 0.8; text-align: center; line-height: 30px; cursor: grab; z-index: 10001;";
-
-        dragIcon.addEventListener("mousedown", (e) => {
-          isDragging = true;
-          const rect = container.getBoundingClientRect();
-          offsetX = e.clientX - rect.left;
-          offsetY = e.clientY - rect.top;
-          document.body.style.userSelect = "none"; // Prevent text selection while dragging
-          dragIcon.style.cursor = "grabbing";
-        });
-
-        document.addEventListener("mousemove", (e) => {
-          if (isDragging) {
-            const x = e.clientX - offsetX;
-            const y = e.clientY - offsetY;
-            container.style.left = `${x}px`;
-            container.style.top = `${y}px`;
-            container.style.bottom = "unset";
-            container.style.right = "unset";
-          }
-        });
-
-        document.addEventListener("mouseup", () => {
-          isDragging = false;
-          document.body.style.userSelect = "";
-          dragIcon.style.cursor = "grab";
-        });
-
-        // Append drag icon on top of the widget's container
+        dragIcon.addEventListener("mousedown", makeDraggable(container));
         container.appendChild(dragIcon);
-
-        // Listen for messages from widget.html (iframe) - e.g., minimize, maximize, close
-        window.addEventListener("message", (event) => {
-          if (event.data.action === "removeWidgetIframe") {
-            container.remove(); 
-            console.log("Widget iframe removed.");
-          } else if (event.data.action === "minimizeWidget") {
-            // Minimize the widget
-            dragIcon.style.cssText =
-              "position: absolute; top: 0px; right: 0px; width: 24px; height: 24px; background-color: grey; color: white; opacity: 0.8; text-align: center; line-height: 24px; cursor: grab; z-index: 10001;";
-            container.style.width = "50px";
-            container.style.height = "50px";
-            console.log("Widget minimized.");
-          } else if (event.data.action === "restoreWidget") {
-            // Restore widget to original size
-            dragIcon.style.cssText =
-              "position: absolute; top: 11px; right: 10px; width: 30px; height: 30px; background-color: grey; color: white; opacity: 0.8; text-align: center; line-height: 30px; cursor: grab; z-index: 10001;";
-            container.style.width = "310px";
-            container.style.height = "300px";
-            console.log("Widget restored.");
-          }
-        });
       }
-    });
-
-    const speedIndicator = document.createElement("div");
-    speedIndicator.textContent = "1.5x";
-    speedIndicator.style.color = "#fff";
-    speedIndicator.style.marginRight = "12px";
-    speedIndicator.style.fontSize = "16px";
-
-    speedIndicator.addEventListener("click", () => {
+    }
+  
+    function cyclePlaybackSpeed(element, item) {
       if (myAudioPlayer) {
-        const speeds = [0.5, 1.0, 1.5, 2.0];
-        let currentSpeed = myAudioPlayer.playbackRate;
-        let nextIndex = (speeds.indexOf(currentSpeed) + 1) % speeds.length;
-        let nextSpeed = speeds[nextIndex];
+        const currentSpeed = myAudioPlayer.playbackRate;
+        const nextIndex = (item.speeds.indexOf(currentSpeed) + 1) % item.speeds.length;
+        const nextSpeed = item.speeds[nextIndex];
         myAudioPlayer.playbackRate = nextSpeed;
-        speedIndicator.textContent = `${nextSpeed}x`;
+        element.textContent = `${nextSpeed}x`;
       }
-    });
-
-    const menuButton2 = document.createElement("button");
-    menuButton2.textContent = ">";
-    menuButton2.style.width = "40px";
-    menuButton2.style.height = "40px";
-    menuButton2.style.border = "none";
-    menuButton2.style.marginLeft = "-10px";
-    menuButton2.style.backgroundColor = "transparent";
-    menuButton2.style.color = "#fff";
-    menuButton2.style.cursor = "pointer";
-    menuButton2.style.transform = "scale(1.2)";
-    menuButton2.style.transformOrigin = "center";
-
-    menuButton2.addEventListener("click", () => {
-      collapsibleMenu.style.display = "none"; // Hide the collapsible menu
-      controlsContainer.style.width = "80px"; // Restore the original width
-      controlsContainer.style.borderRadius = "15px";
-      playPauseButton.style.marginLeft = "0";
-      menuButton.style.display = "block"; // Show the original menu button
-    });
-
-    // Add items to collapsible menu
-    collapsibleMenu.appendChild(bookButton);
-    collapsibleMenu.appendChild(speedIndicator);
-    collapsibleMenu.appendChild(menuButton2);
-
-    // Collapsible Menu Button Logic
-    menuButton.addEventListener("click", () => {
-      const isCollapsed = collapsibleMenu.style.display === "none";
-      collapsibleMenu.style.display = isCollapsed ? "flex" : "none";
-      controlsContainer.style.width = "65px";
-      controlsContainer.style.borderLeft = isCollapsed ? "none" : "";
-      controlsContainer.style.borderRadius = isCollapsed ? "0 15px 15px 0" : "15px";
-      playPauseButton.style.marginLeft = isCollapsed ? "8px" : "0";
-      menuButton.style.display = isCollapsed ? "none" : "block";
-    });
-
-    // Append Elements to Controls Container
-    controlsContainer.appendChild(menuButton);
-    controlsContainer.appendChild(playPauseButton);
-    controlsContainer.appendChild(draggableButton);
-    controlsContainer.appendChild(cancelButton);
-    controlsContainer.appendChild(collapsibleMenu);
-
-    // Append Controls to Document Body
-    document.body.appendChild(controlsContainer);
-
-    adjustControlsPosition();
-
-    // Listen for window resize events to adjust the control position
-    window.addEventListener("resize", adjustControlsPosition);
+    }
   }
+
   function adjustControlsPosition() {
     const controlsContainer = document.getElementById("audio-controls");
     if (!controlsContainer) return;
 
-    // Reset left and right positioning
     controlsContainer.style.left = "";
     controlsContainer.style.right = "";
 
@@ -799,25 +1146,21 @@ bookButton.style.backgroundPosition = "center";
     const viewportHeight = window.innerHeight;
     const containerRect = controlsContainer.getBoundingClientRect();
 
-    // Desired margins from the edges
-    const marginRight = 20; // pixels
-    const marginTop = 75; // pixels
+    const marginRight = 20;
+    const marginTop = 75;
 
-    // Ensure the container stays within the viewport horizontally
     if (containerRect.right + marginRight > viewportWidth) {
       controlsContainer.style.right = `${marginRight}px`;
     } else {
       controlsContainer.style.right = `${marginRight}px`;
     }
 
-    // Optionally, adjust the top position if needed
     if (marginTop + containerRect.height > viewportHeight) {
       controlsContainer.style.top = `${viewportHeight - containerRect.height - marginTop}px`;
     } else {
       controlsContainer.style.top = `${marginTop}px`;
     }
 
-    // Optional: Adjust size based on viewport width for better responsiveness
     if (viewportWidth < 600) {
       controlsContainer.style.width = "60px";
       controlsContainer.style.height = "45px";
