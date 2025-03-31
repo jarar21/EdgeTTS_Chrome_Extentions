@@ -1,14 +1,18 @@
 # EdgeTTS Chrome Extension
 
-The **EdgeTTS Chrome Extension** is a tool that leverages a Flask server running locally to generate audio using EdgeTTS. The extension allows users to:
-- Generate audio from custom text input.
-- Generate and play audio for the content of the current webpage.
+The **EdgeTTS Chrome Extension** is a versatile tool that uses a locally hosted Flask server to generate audio using EdgeTTS. This extension provides a seamless way to convert webpage content or custom text into speech, enhancing accessibility and user experience.
 
-### Features
-- **Webpage Audio**: Extracts text from the active webpage and converts it into speech.
-- **Custom Text-to-Speech**: Allows users to input text and generate audio dynamically.
-- **Interactive Widget**: Includes playback controls, speed adjustments, and widget customization (minimize, maximize, drag).
+---
 
+## Features
+
+- **Seamless Paragraph Audio**: Click on any paragraph on a webpage, and the extension will convert it to audio. It will continue generating audio for subsequent paragraphs, ensuring a smooth and uninterrupted listening experience.
+- **Webpage-to-Audio Conversion**: Extracts text from the active webpage and converts it into speech with just a click.
+- **Custom Text-to-Speech**: Input custom text and dynamically generate audio on demand.
+- **Interactive Widget**: Includes playback controls, speed adjustments, and widget customization options (minimize, maximize, drag).
+- **Custom Audio Player**: Features an integrated audio player built with wavesurfer.js for enhanced playback functionality.
+
+---
 ---
 ### Collapsed popup
 ![2025-02-25 19_42_38-Genghis Khan - Wikipedia](https://github.com/user-attachments/assets/a61f0890-fb8f-4bb4-909a-e0c9adea48ff)
@@ -17,12 +21,16 @@ The **EdgeTTS Chrome Extension** is a tool that leverages a Flask server running
 ### Expanded popup
 ![2025-02-25 19_43_05-Genghis Khan - Wikipedia](https://github.com/user-attachments/assets/8775cc10-e7b4-402c-8d7e-8c1a2ae589e0)
 
+### Seamless Paragraph Audio
+![2025-02-27 21_44_06-Genghis Khan - Wikipedia](https://github.com/user-attachments/assets/2c7d1805-83e8-470a-b882-8eae8fc9f219)
+
 
 ### Widget Generate 
 ![2025-02-25 19_45_07-Genghis Khan - Wikipedia](https://github.com/user-attachments/assets/23bde791-63c8-43bd-82fd-d791413f37d1)
 
 ### Widget Whole page
-![2025-02-25 19_43_25-Genghis Khan - Wikipedia](https://github.com/user-attachments/assets/b2ec0845-2d7a-4576-b216-c9f51ffcd07f)
+![2025-02-25 19_58_59-Custom TTS Audio Player](https://github.com/user-attachments/assets/9c3d7638-ea08-448b-b105-9d0323476aee)
+
 
 
 ### Requirements
