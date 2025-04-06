@@ -207,34 +207,69 @@
         }
 
         .controls .volume-container:hover {
-            background-color: rgb(173, 117, 45);
+            background-color: rgba(0, 123, 255, 0.8);
             width: 120px;
         }
 
         .controls .volume-slider {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-45%, -50%);
-            display: none; /* Hidden by default */
-            width: 60px;
-            height: 4px;
-            color: #eaecee;
-            background-color: rgb(230, 230, 236); /* Dark blue background for slider */
-            border-radius: 5px;
-        }
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-30%, -60%);
+    display: none; /* Hidden by default */
+    width: 60px;
+    height: 4px;
+    color: #eaecee;
+    background-color: rgb(255, 255, 255); /* Dark blue background for slider */
+    border-radius: 5px;
+    z-index: 1;
+    -webkit-appearance: none; /* Remove default browser styling for Webkit */
+    appearance: none; /* Remove default browser styling */
+}
 
-        .controls .volume-container:hover .volume-slider {
-                    display: block; /* Show slider on hover */
-                }
-        .controls .volume-slider::before {
-            content: '';
-            position: absolute;
-            height: 100%;
-            width: 100%;
-            background-color: white; /* White slider color */
-            border-radius: 5px;
-        }
+/* Style the thumb for Webkit browsers (Chrome, Safari) */
+.controls .volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    transform: translate(0%, -40%);
+    width: 18px; /* Width of the thumb */
+    height: 18px; /* Height of the thumb */
+    background-color: rgb(255, 255, 255); /* Black thumb */
+    border-radius: 50%; /* Circular thumb */
+    cursor: pointer;
+    border: none; /* Remove any border */
+}
+
+/* Style the thumb for Firefox */
+.controls .volume-slider::-moz-range-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    transform: translate(0%, -40%);
+    width: 18px; /* Width of the thumb */
+    height: 18px; /* Height of the thumb */
+    background-color: rgb(255, 255, 255); /* Black thumb */
+    border-radius: 50%; /* Circular thumb */
+    cursor: pointer;
+    border: none; /* Remove any border */
+}
+
+/* Ensure the slider track remains white (optional, for consistency) */
+.controls .volume-slider::-webkit-slider-runnable-track {
+    background-color: white; /* White track */
+    height: 4px;
+    border-radius: 5px;
+}
+
+.controls .volume-slider::-moz-range-track {
+    background-color: white; /* White track */
+    height: 4px;
+    border-radius: 5px;
+}
+
+/* Show slider on hover */
+.controls .volume-container:hover .volume-slider {
+    display: block; /* Show slider on hover */
+}
 
         .controls i {
             width: 2.5rem;

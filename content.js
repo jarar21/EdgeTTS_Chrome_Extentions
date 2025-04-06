@@ -1,3 +1,4 @@
+// content.js
 (function () {
   var myAudioPlayer = null;          // Audio object
   var currentAudioElement = null;    // The DOM element (e.g., <p>) that was clicked
@@ -9,6 +10,7 @@
   var paragraphQueue = []; // Queue of paragraphs for sequential playback
   var currentParagraphIndex = 0; // Track the current paragraph being played
   var debounceTimer = null;
+  var ttsActive = true;
 
   // -------------- 1) Add click for partial-text TTS -------------- //
 
@@ -117,7 +119,71 @@
       }
     );
   }
+  window.addEventListener('message', (event) => {
+    const iframeContainer = document.getElementById('draggableIframeContainer');
 
+    if (event.data && event.data.action) {
+        switch (event.data.action) {
+            case 'removeWidgetIframe':
+                if (iframeContainer) {
+                    console.log("Removing widget iframe container.");
+                    iframeContainer.remove();
+                } else {
+                    console.warn("Tried to remove widget, but container not found.");
+                }
+                break;
+
+            case 'minimizeWidget':
+                if (iframeContainer) {
+                    console.log("Minimizing widget container.");
+                    // Set container size to match internal minimized state
+                    iframeContainer.style.width = '50px';
+                    iframeContainer.style.height = '50px';
+                    iframeContainer.style.overflow = 'hidden';
+                    iframeContainer.style.transition = 'all 0.3s ease';
+                    // Forward to iframe for internal sync
+                    const iframe = iframeContainer.querySelector('#draggableIframe');
+                    if (iframe && iframe.contentWindow) {
+                        iframe.contentWindow.postMessage({ action: "minimizeWidget" }, "*");
+                    }
+                }
+                break;
+
+            case 'restoreWidget':
+                if (iframeContainer) {
+                    console.log("Restoring widget container.");
+                    // Restore container to original size
+                    iframeContainer.style.width = '310px';
+                    iframeContainer.style.height = '330px';
+                    iframeContainer.style.overflow = 'visible';
+                    iframeContainer.style.transition = 'all 0.3s ease';
+                    // Forward to iframe for internal sync
+                    const iframe = iframeContainer.querySelector('#draggableIframe');
+                    if (iframe && iframe.contentWindow) {
+                        iframe.contentWindow.postMessage({ action: "restoreWidget" }, "*");
+                    }
+                }
+                break;
+
+            case 'startDrag':
+                console.log("Content script: Disabling text selection on body.");
+                document.body.style.userSelect = 'none';
+                document.body.style.webkitUserSelect = 'none';
+                document.body.style.cursor = 'grabbing';
+                break;
+
+            case 'endDrag':
+                console.log("Content script: Re-enabling text selection on body.");
+                document.body.style.userSelect = '';
+                document.body.style.webkitUserSelect = '';
+                document.body.style.cursor = '';
+                break;
+
+            default:
+                break;
+        }
+    }
+});
   // Listen for messages from the widget
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "playWebpageAudio") {
@@ -125,10 +191,11 @@
       sendResponse({ status: "initiated" });
     }
   });
-
+  // --- Updated setupTextToSpeech Function ---
+  
   function setupTextToSpeech() {
     console.log("Setting up TTS click listener using event delegation (v2 - stricter targetting).");
-  
+
     // Ensure no duplicate listeners if run multiple times
     const listenerMarker = 'ttsListenerAttached_v2';
     if (document.body.dataset[listenerMarker] === 'true') {
@@ -136,132 +203,123 @@
        return;
     }
     document.body.dataset[listenerMarker] = 'true';
-  
+
     document.body.addEventListener("click", (event) => {
-      // --- Basic Filtering ---
-  
+      // ======================================================
+      // <<<--- Check if TTS is globally active FIRST ---<<<
+      if (!ttsActive) { // ADDED: Check the global flag
+          // console.log("TTS terminated, ignoring click."); // Optional log for debugging
+          return; // Don't process the click if TTS has been stopped
+      }
+      // ======================================================
+
+      // --- Basic Filtering (Now follows the ttsActive check) ---
+
       // 1. Ignore clicks if blocked (debouncing)
       if (isBlocked) {
-        // console.log("Action blocked. Please wait."); // Keep console less noisy
+        // console.log("Action blocked. Please wait.");
         return;
       }
-  
-      // 2. Ignore clicks on the audio controls
+
+      // 2. Ignore clicks on the audio controls UI itself
       if (event.target.closest("#audio-controls")) {
         return;
       }
-  
-      // 3. Ignore clicks on explicitly interactive elements
-      const interactiveElement = event.target.closest('a, button, input, select, textarea, label, [role="button"], [role="link"], [onclick], summary'); // Added label, summary
+
+      // 3. Ignore clicks on standard interactive elements
+      const interactiveElement = event.target.closest('a, button, input, select, textarea, label, [role="button"], [role="link"], [onclick], summary');
       if (interactiveElement) {
-          // Allow clicks on interactive elements unless it's just text inside (e.g., <a><span>Click Text</span></a>)
-          // If the interactive element *is* the target, let it pass.
-          // If the target is *inside* the interactive element, maybe it's just text? This gets complex.
-          // Let's keep it simple: if closest finds an interactive element, assume it's intentional interaction.
         return;
       }
-  
+
       // --- Stricter Target Identification ---
-  
-      // 4. NEW: Ignore clicks directly on major layout containers (likely empty space)
-      //    Check the element *directly clicked* (`event.target`)
+
+      // 4. Ignore clicks directly on major layout containers
       const clickedTagName = event.target.tagName.toUpperCase();
       const layoutContainerTags = ['BODY', 'MAIN', 'ARTICLE', 'SECTION', 'HEADER', 'FOOTER', 'ASIDE', 'NAV', 'HTML'];
       if (layoutContainerTags.includes(clickedTagName)) {
-          // If the direct click target is a major structural tag, it's almost certainly empty space.
-          console.log("Clicked directly on a major layout container, ignoring.", event.target);
+          // console.log("Clicked directly on a major layout container, ignoring.", event.target); // Reduce noise
           return;
       }
-      // Slightly more aggressive: If it's a DIV that is the direct target AND it contains block elements, likely empty space between blocks.
+      // More aggressive check for DIVs containing blocks (likely empty space between)
       if (clickedTagName === 'DIV' && event.target.querySelector('p, ul, ol, h1, h2, h3, h4, h5, h6, div, table')) {
-          // Check if the click was precisely on this div, not a child text node
           if (event.target === document.elementFromPoint(event.clientX, event.clientY)) {
-               // Heuristic: Clicking a DIV that contains blocks often means clicking the space *between* them.
-               console.log("Clicked directly on a DIV containing block elements, likely empty space. Ignoring.", event.target);
+               // console.log("Clicked directly on a DIV containing block elements, likely empty space. Ignoring.", event.target); // Reduce noise
                return;
           }
       }
-  
-  
-      // 5. Find the most specific relevant text block ancestor.
-      //    Prioritize elements meant to hold distinct text units.
-      //    *** REMOVED the broad fallback to 'div, section, article' ***
+
+
+      // 5. Find the most specific relevant text block ancestor
       const potentialTargetSelectors = [
-        "p", "li", // Standard text blocks
-        "h1", "h2", "h3", "h4", "h5", "h6", // Headings
-        "blockquote", // Quotes
-        "td", "th", // Table cells
-        "pre", // Preformatted text
-        "dt", "dd", // Definition lists
-        "caption", // Table captions
-        // Add specific classes known to contain text blocks if needed, e.g., ".comment-text", ".article-paragraph"
-        // Experimental: Divs/Spans that *look* like text blocks (more likely to contain direct text)
-        // 'div[class*="text"]', 'span[class*="content"]' // Example - tailor as needed
-      ].join(", "); // Create a comma-separated selector string
-  
+        "p", "li", "h1", "h2", "h3", "h4", "h5", "h6",
+        "blockquote", "td", "th", "pre", "dt", "dd", "caption"
+        // Add specific classes/selectors if needed: e.g., ".comment-text", ".article-para"
+      ].join(", ");
+
       const paragraphElement = event.target.closest(potentialTargetSelectors);
-  
-      // 6. If no specific text block ancestor is found, ignore the click.
-      //    This prevents activating on clicks in the 'empty space' within larger containers.
+
+      // 6. If no specific text block ancestor is found, ignore
       if (!paragraphElement) {
         // console.warn("No specific text block element found as ancestor of:", event.target); // Reduce noise
         return;
       }
-  
+
       // --- Processing the Valid Click ---
-  
-      // 7. Get text content. Use innerText as it reflects rendering.
+
+      // 7. Get text content
       const clickedText = paragraphElement.innerText?.trim();
-  
-      // 8. Ignore if the identified element has negligible text content
+
+      // 8. Ignore elements with negligible text
       if (!clickedText || clickedText.length < 5) { // Minimum length threshold
         // console.warn("Identified element has insufficient text. Ignoring.", paragraphElement); // Reduce noise
         return;
       }
-  
-      // 9. Ignore if the element is identified as entirely math/code (using your existing function)
+
+      // 9. Ignore elements identified as entirely math/code
        if (isEntirelyLatexOrKatex(paragraphElement)) {
          console.log("Skipping entirely LaTeX/KaTeX element:", paragraphElement);
          return;
        }
-  
+
       // --- Initiate Playback ---
-  
+
       console.log("Valid target found:", paragraphElement);
       // console.log("Text to process:", clickedText); // Can be verbose
-  
-      // Prevent default actions & stop bubbling now we've decided to handle it
+
+      // Prevent default actions & stop bubbling *only* if we're handling the click
       event.preventDefault();
       event.stopPropagation();
-  
+
       // Block subsequent clicks briefly
       isBlocked = true;
       setTimeout(() => {
         isBlocked = false;
       }, 1000); // 1 second block
-  
-      // Cleanup previous state
+
+      // Cleanup any previous playback state
       cleanupExistingPlayback();
-  
-      // Set current element and store original HTML (important for potential complex content)
+
+      // Set current element reference
       currentAudioElement = paragraphElement;
-      // Storing innerHTML might be better if highlighting modifies structure heavily
-      // Consider storing original text if highlighting is simple background change
-      originalText = currentAudioElement.innerHTML;
-  
-      // Apply visual feedback (subtle initial highlight, heavier during playback)
-      currentAudioElement.style.transition = "background-color 0.3s ease, box-shadow 0.3s ease";
-      currentAudioElement.style.backgroundColor = "rgba(210, 230, 255, 0.5)"; // Light blue initial feedback
-  
+      // REMOVED: originalText = currentAudioElement.innerHTML; // No longer needed
+
+      // Apply visual feedback (initial highlight)
+      // Ensure smooth transitions are applied if not already present
+      // (Consider adding this transition via CSS instead for cleaner JS)
+      if (paragraphElement.style.transition.indexOf('background-color') === -1) {
+          paragraphElement.style.transition = "background-color 0.3s ease, box-shadow 0.3s ease";
+      }
+      paragraphElement.style.backgroundColor = "rgba(210, 230, 255, 0.5)"; // Light blue initial feedback
+
       // Queue this paragraph and subsequent ones for playback
       queueParagraphsForAudio(paragraphElement); // Pass the confirmed target element
-  
+
       // Start the audio sequence
-      playNextParagraphAudio(); // This will fetch audio and apply stronger highlighting
-  
-    }, { capture: true }); // Use capture phase (optional, bubble usually fine)
+      playNextParagraphAudio(); // This will fetch/play audio and apply stronger highlighting
+
+    }, { capture: true }); // Using capture phase
   }
-  
   function queueParagraphsForAudio(startElement) {
     paragraphQueue = [];
     currentParagraphIndex = 0;
@@ -1173,45 +1231,107 @@ function cleanupExistingPlayback() {
     }
   }
   function terminateTTSProcess() {
+    console.log("Terminating TTS process...");
 
-    window.removeEventListener("resize", adjustControlsPosition);
-    if (myAudioPlayer) {
-      myAudioPlayer.pause();
-      myAudioPlayer.src = "";
-      myAudioPlayer = null;
+    // 1. Set the global flag to prevent new TTS clicks
+    ttsActive = false; // <<< Stop listener from initiating new TTS
+
+    // 2. Remove listener marker (good practice)
+    if (document.body.dataset.ttsListenerAttached_v2) {
+        delete document.body.dataset.ttsListenerAttached_v2;
+        // console.log("Removed TTS listener marker.");
     }
 
-    if (currentAudioElement) {
-      currentAudioElement.innerHTML = originalText;
-      currentAudioElement.style.backgroundColor = "";
-      currentAudioElement.style.boxShadow = "none";
-      currentAudioElement.style.borderRadius = "0";
+    // 3. Stop and clean up the current audio player
+    const playerToStop = myAudioPlayer;
+    if (playerToStop) {
+      playerToStop.pause();
+      const currentSrc = playerToStop.src;
+      playerToStop.src = ""; // Detach source
+      playerToStop.removeAttribute('src'); // Ensure detachment
+      // Explicitly remove listeners attached in handleAudioResponse
+      // (Requires storing listener references or using anonymous functions carefully)
+      // playerToStop.removeEventListener('timeupdate', ...);
+      // playerToStop.removeEventListener('ended', ...);
+      // playerToStop.removeEventListener('error', ...);
+      myAudioPlayer = null; // Nullify global reference AFTER cleanup
+      console.log("Paused and detached audio player.");
+
+      if (currentSrc && currentSrc.startsWith('blob:')) {
+          URL.revokeObjectURL(currentSrc);
+          console.log("Revoked Blob URL from stopped player:", currentSrc);
+      }
+    } else {
+       console.log("No active audio player to stop.");
     }
 
+    // 4. Reset styles & cleanup preloads for the active element and queue
+    const elementThatWasPlaying = currentAudioElement;
+    const queueToClean = [...paragraphQueue]; // Copy queue before clearing
+
+    if (elementThatWasPlaying) {
+        resetSectionStyles(elementThatWasPlaying);
+        console.log("Cleaned up styles for the last active element:", elementThatWasPlaying);
+    }
+
+    console.log("Cleaning up paragraph queue...");
+    queueToClean.forEach((element, index) => {
+        if (element) {
+            if (element.preloadedAudioUrl) {
+                // console.log(`Revoking unused preloaded URL for queued element at index ${index}:`, element);
+                URL.revokeObjectURL(element.preloadedAudioUrl);
+                element.preloadedAudioUrl = null;
+            }
+            element.isPreloadingAudio = false;
+            // Reset styles for queued elements if they weren't the one playing
+            if (element !== elementThatWasPlaying) {
+                 resetSectionStyles(element);
+            }
+        }
+    });
+
+    // 5. Reset internal state variables
+    currentAudioElement = null;
+    paragraphQueue = [];
+    currentParagraphIndex = 0;
+    // wordSpans = []; // Not used anymore
+    totalWords = 0;
+    // originalText = ""; // Not used anymore
+    isBlocked = false; // Allow clicks again (though ttsActive handles TTS blocking)
+
+    console.log("Internal state reset.");
+
+    // 6. Remove the audio controls UI
     const controlsContainer = document.getElementById("audio-controls");
     if (controlsContainer) {
       controlsContainer.remove();
+      console.log("Removed audio controls UI.");
     }
 
-    wordSpans = [];
-    totalWords = 0;
-    originalText = "";
-    currentAudioElement = null;
-    isBlocked = false;
-    isCollapsed = true;
+    // 7. Remove the resize listener
+    window.removeEventListener("resize", adjustControlsPosition);
+    console.log("Removed resize listener.");
 
-    const textElements = document.querySelectorAll(
-      "p, span, div, article, section, li, h1, h2, h3, h4, h5, h6"
-    );
+    // 8. DO NOT CLONE/REPLACE ELEMENTS. ttsActive flag handles stopping new TTS.
 
-    textElements.forEach((element) => {
-      element.replaceWith(element.cloneNode(true));
-    });
-
-    console.log("TTS process terminated and cleaned up.");
+    console.log("TTS process terminated cleanly.");
   }
 
+
   // -------------- INIT -------------- //
-  setupTextToSpeech();
-  createAudioControlButtons();
+  // Only setup if not already terminated and marker isn't present
+  if (ttsActive && !document.body.dataset.ttsListenerAttached_v2) {
+      setupTextToSpeech();
+      createAudioControlButtons();
+  } else if (!ttsActive) {
+      console.log("TTS was already terminated, not initializing.");
+  } else {
+      console.log("TTS listener marker found, assuming already initialized.");
+      // Optionally recreate controls if they are missing but listener exists?
+       if (!document.getElementById("audio-controls")) {
+            console.log("Controls missing, recreating them.");
+            createAudioControlButtons();
+       }
+  }
+
 })();

@@ -3,6 +3,8 @@ document.addEventListener("DOMContentLoaded", () => {
     let volume1 = 1; // Default volume for player1
     let volume2 = 1; // Default volume for player2
     let associatedTabId = null; // To store the associated tab ID
+    let previousVolume1 = 1;
+    let previousVolume2 = 1;
 
     // -------------- Associate Widget with Specific Tab --------------
     // Function to get and store the associated tab ID
@@ -58,19 +60,46 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const updateVolumeIcon = (volume) => {
         if (volume === 0) {
-          volumeButton.classList.remove("fi-rr-volume-medium", "fi-rr-volume-high");
+          volumeButton.classList.remove("fi-rr-volume", "fi-rr-volume-down", "fi-rr-volume-off");
           volumeButton.classList.add("fi-rr-volume-mute");
         } else if (volume > 0 && volume <= 0.3) {
-          volumeButton.classList.remove("fi-rr-volume-mute", "fi-rr-volume-high");
-          volumeButton.classList.add("fi-rr-volume-low");
+          volumeButton.classList.remove("fi-rr-volume", "fi-rr-volume-down", "fi-rr-volume-mute");
+          volumeButton.classList.add("fi-rr-volume-off");
         } else if (volume > 0.3 && volume <= 0.7) {
-          volumeButton.classList.remove("fi-rr-volume-mute", "fi-rr-volume-low");
-          volumeButton.classList.add("fi-rr-volume-medium");
+          volumeButton.classList.remove("fi-rr-volume", "fi-rr-volume-off", "fi-rr-volume-mute");
+          volumeButton.classList.add("fi-rr-volume-down");
         } else {
-          volumeButton.classList.remove("fi-rr-volume-mute", "fi-rr-volume-low");
-          volumeButton.classList.add("fi-rr-volume-high");
+          volumeButton.classList.remove("fi-rr-volume-down", "fi-rr-volume-off", "fi-rr-volume-mute");
+          volumeButton.classList.add("fi-rr-volume");
         }
       };
+
+      // Update the volumeButton event listener to restore the volume slider
+volumeButton.addEventListener("click", () => {
+  if (playerNumber === 1) {
+    if (volume1 === 0) {
+      volume1 = previousVolume1;
+      volumeSlider.value = previousVolume1; // Restore the volume slider
+    } else {
+      previousVolume1 = volume1;
+      volume1 = 0;
+      volumeSlider.value = 0; // Set the volume slider to 0
+    }
+    wavesurfer1.setVolume(volume1);
+    updateVolumeIcon(volume1);
+  } else if (playerNumber === 2) {
+    if (volume2 === 0) {
+      volume2 = previousVolume2;
+      volumeSlider.value = previousVolume2; // Restore the volume slider
+    } else {
+      previousVolume2 = volume2;
+      volume2 = 0;
+      volumeSlider.value = 0; // Set the volume slider to 0
+    }
+    wavesurfer2.setVolume(volume2);
+    updateVolumeIcon(volume2);
+  }
+});
 
       const updateSpeedIcon = () => {
         speedButton.title = `Speed: ${playbackSpeed}x`;
